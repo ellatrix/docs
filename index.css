@@ -1,0 +1,9 @@
+.editor-post-preview,
+.editor-post-publish-panel__toggle,
+.edit-post-post-status {
+	display: none !important;
+}
+
+.editor-post-locked-modal__avatar {
+	height: 64px;
+}
