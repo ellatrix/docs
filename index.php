@@ -49,6 +49,28 @@ register_activation_hook( __FILE__, function() {
 
 	require 'register.php';
 	flush_rewrite_rules();
+
+	if ( ! wp_next_scheduled( 'docs_cleanup_anon_users' ) ) {
+		wp_schedule_event( time(), 'daily', 'docs_cleanup_anon_users' );
+	}
+} );
+
+register_deactivation_hook( __FILE__, function() {
+	wp_clear_scheduled_hook( 'docs_cleanup_anon_users' );
+} );
+
+// Delete anonymous users whose sessions have all expired.
+// Anon users can't re-authenticate, so expired sessions mean the user is unreachable.
+add_action( 'docs_cleanup_anon_users', function() {
+	$anon_users = get_users( array( 'role' => 'docs_anon' ) );
+
+	foreach ( $anon_users as $user ) {
+		$manager = WP_Session_Tokens::get_instance( $user->ID );
+
+		if ( empty( $manager->get_all() ) ) {
+			wp_delete_user( $user->ID );
+		}
+	}
 } );
 
 function docs__get_or_create_user_by_email( $email_address ) {
@@ -358,8 +380,7 @@ add_action( 'added_post_meta', function( $meta_id, $object_id, $meta_key, $meta_
 	}
 }, 10, 4 );
 
-// Hide anonymous users in user list.
-// They need to be regularly deleted (perhaps every few days).
+// Hide anonymous users in the admin user list.
 add_filter( 'users_list_table_query_args', function( $args ) {
 	$args[ 'role__not_in' ] = array( 'docs_anon' );
 	return $args;
