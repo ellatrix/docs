@@ -1,16 +1,16 @@
 ( function () {
 	var el = wp.element.createElement;
-	var Fragment = wp.element.Fragment;
 	var useState = wp.element.useState;
 	var __ = wp.i18n.__;
 	var registerPlugin = wp.plugins.registerPlugin;
-	var PluginDocumentSettingPanel = wp.editPost.PluginDocumentSettingPanel;
+	var PluginDocumentSettingPanel = wp.editor.PluginDocumentSettingPanel;
 	var useSelect = wp.data.useSelect;
 	var useDispatch = wp.data.useDispatch;
 	var RadioControl = wp.components.RadioControl;
 	var TextareaControl = wp.components.TextareaControl;
 	var TextControl = wp.components.TextControl;
 	var Button = wp.components.Button;
+	var useCopyToClipboard = wp.compose.useCopyToClipboard;
 
 	var ANYONE_KEY = 'docs-share-anyone';
 	var ADDRESSES_KEY = 'docs-share-email-addresses';
@@ -35,9 +35,18 @@
 
 			var anyone = meta[ ANYONE_KEY ] || '';
 
+			var copyRef = useCopyToClipboard( function () {
+				return link;
+			}, function () {
+				setCopied( true );
+				setTimeout( function () {
+					setCopied( false );
+				}, 2000 );
+			} );
+
 			return el(
 				PluginDocumentSettingPanel,
-				{ title: __( 'Share', 'docs' ), icon: 'admin-links' },
+				{ name: 'docs-share', title: __( 'Share', 'docs' ), icon: 'admin-links' },
 				el( RadioControl, {
 					selected: anyone,
 					options: [
@@ -63,19 +72,13 @@
 				anyone && el( TextControl, {
 					readOnly: true,
 					value: link,
+					__next40pxDefaultSize: true,
 				} ),
 				anyone && el(
 					Button,
 					{
 						variant: 'secondary',
-						onClick: function () {
-							navigator.clipboard.writeText( link ).then( function () {
-								setCopied( true );
-								setTimeout( function () {
-									setCopied( false );
-								}, 2000 );
-							} );
-						},
+						ref: copyRef,
 					},
 					isCopied ? __( 'Copied!', 'docs' ) : __( 'Copy Link', 'docs' )
 				)

@@ -407,9 +407,10 @@ add_action( 'enqueue_block_editor_assets', function() {
 			'wp-element',
 			'wp-i18n',
 			'wp-plugins',
-			'wp-edit-post',
+			'wp-editor',
 			'wp-data',
 			'wp-components',
+			'wp-compose',
 		),
 		filemtime( dirname( __FILE__ ) . '/index.js' )
 	);
