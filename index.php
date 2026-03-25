@@ -482,20 +482,23 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 	}
 
 	if ( $anyone !== 'email' ) {
-		return array();
+		unset( $user_caps['edit_docs'], $user_caps['edit_others_docs'], $user_caps['edit_published_docs'] );
+		return $user_caps;
 	}
 
 	$user = get_userdata( $user_id );
 	$email_addresses = get_post_meta( $object_id, 'docs-share-email-addresses', true );
 
 	if ( ! $email_addresses ) {
-		return array();
+		unset( $user_caps['edit_docs'], $user_caps['edit_others_docs'], $user_caps['edit_published_docs'] );
+		return $user_caps;
 	}
 
 	$email_addresses = preg_split( '/[\s,]+/', $email_addresses );
 
 	if ( ! in_array( $user->user_email, $email_addresses ) ) {
-		return array();
+		unset( $user_caps['edit_docs'], $user_caps['edit_others_docs'], $user_caps['edit_published_docs'] );
+		return $user_caps;
 	}
 
 	return $user_caps;
