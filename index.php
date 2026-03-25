@@ -137,14 +137,17 @@ add_action( 'template_redirect', function() {
 			isset( $_GET['action'] ) &&
 			isset( $_GET['key'] ) &&
 			isset( $_GET['login'] ) &&
-			$_GET['login'] !== $current_user->user_login &&
-			$_GET['action'] === 'rp'
+			sanitize_text_field( wp_unslash( $_GET['login'] ) ) !== $current_user->user_login &&
+			sanitize_text_field( wp_unslash( $_GET['action'] ) ) === 'rp'
 		) {
-			$user = check_password_reset_key( $_GET['key'], $_GET['login'] );
+			$reset_key   = sanitize_text_field( wp_unslash( $_GET['key'] ) );
+			$reset_login = sanitize_text_field( wp_unslash( $_GET['login'] ) );
+
+			$user = check_password_reset_key( $reset_key, $reset_login );
 			$wpdb->update(
 				$wpdb->users,
 				array( 'user_activation_key' => '' ),
-				array( 'user_login' => $_GET['login'] )
+				array( 'user_login' => $reset_login )
 			);
 
 			if ( is_wp_error( $user ) ) {
@@ -205,7 +208,7 @@ add_action( 'template_redirect', function() {
 				exit;
 			}
 
-			$email_address = trim( wp_unslash( $_POST['user_login'] ) );
+			$email_address = sanitize_email( trim( wp_unslash( $_POST['user_login'] ) ) );
 
 			if ( ! is_email( $email_address ) ) {
 				$doc_errors->add( 'empty_username', __( '<strong>Error</strong>: Enter an email address.', 'docs' ) );
@@ -215,7 +218,6 @@ add_action( 'template_redirect', function() {
 
 			$email_addresses = get_post_meta( $post->ID, 'docs-share-email-addresses', true );
 			$email_addresses = preg_split( '/[\s,]+/', $email_addresses );
-			$email_address = trim( wp_unslash( $_POST['user_login'] ) );
 
 			if ( ! in_array( $email_address, $email_addresses ) ) {
 				$doc_errors->add( 'empty_username', __( '<strong>Error</strong>: You do not have acces to edit this document.', 'docs' ) );
@@ -274,7 +276,7 @@ add_action( 'login_init', function() {
 	$user_login = '';
 
 	if ( isset( $_POST['user_login'] ) && is_string( $_POST['user_login'] ) ) {
-		$user_login = wp_unslash( $_POST['user_login'] );
+		$user_login = sanitize_email( wp_unslash( $_POST['user_login'] ) );
 	}
 
 	?>
