@@ -404,6 +404,20 @@ add_action( 'enqueue_block_editor_assets', function() {
 	);
 } );
 
+// Replace the core sync server with our subclass that supports doc capabilities.
+// Register before core (priority 99) so our handler is tried first by the REST
+// server. Core's handler remains as a fallback but is never reached.
+add_action( 'rest_api_init', function() {
+	if ( ! class_exists( 'WP_HTTP_Polling_Sync_Server' ) || ! wp_is_collaboration_enabled() ) {
+		return;
+	}
+
+	require_once __DIR__ . '/class-docs-http-polling-sync-server-custom-caps.php';
+
+	$sync_server = new Docs_HTTP_Polling_Sync_Server_Custom_Caps( new WP_Sync_Post_Meta_Storage() );
+	$sync_server->register_routes();
+}, 98 );
+
 add_action( 'pre_get_posts', function( $query ) {
 	if ( is_admin() || ! $query->query || ! isset( $query->query[ 'post_type' ] ) ) {
 		return;
