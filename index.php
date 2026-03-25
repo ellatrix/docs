@@ -411,6 +411,7 @@ add_action( 'enqueue_block_editor_assets', function() {
 			'wp-data',
 			'wp-components',
 			'wp-compose',
+			'wp-primitives',
 		),
 		filemtime( dirname( __FILE__ ) . '/index.js' )
 	);

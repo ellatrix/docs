@@ -7,3 +7,94 @@
 .editor-post-locked-modal__avatar {
 	height: 64px;
 }
+
+/* Share panel */
+
+/* Add people */
+
+.docs-share-add-person {
+	display: flex;
+	gap: 8px;
+	align-items: flex-start;
+	margin-bottom: 4px;
+}
+
+.docs-share-add-person .components-base-control {
+	flex: 1;
+}
+
+/* People list */
+
+.docs-share-person-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 0;
+}
+
+.docs-share-person-avatar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	background: #2271b1;
+	color: #fff;
+	font-size: 14px;
+	font-weight: 500;
+	flex-shrink: 0;
+}
+
+.docs-share-person-email {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 13px;
+}
+
+.docs-share-person-role {
+	flex-shrink: 0;
+}
+
+/* General access */
+
+.docs-share-access-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.docs-share-access-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	background: #e0e0e0;
+	flex-shrink: 0;
+}
+
+.docs-share-access-icon svg {
+	display: block;
+}
+
+.docs-share-access-label {
+	flex: 1;
+	min-width: 0;
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.docs-share-access-select {
+	flex-shrink: 0;
+}
+
+.docs-share-copy-link {
+	width: 100%;
+	justify-content: center;
+	margin-top: 16px;
+}

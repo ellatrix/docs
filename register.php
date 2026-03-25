@@ -48,6 +48,18 @@ register_post_meta( 'doc', 'docs-share-email-addresses', array(
 	'type' => 'string',
 ) );
 
+register_post_meta( 'doc', 'docs-share-email-addresses-view', array(
+	'show_in_rest' => true,
+	'single' => true,
+	'type' => 'string',
+) );
+
+register_post_meta( 'doc', 'docs-share-email-addresses-comment', array(
+	'show_in_rest' => true,
+	'single' => true,
+	'type' => 'string',
+) );
+
 register_post_meta( 'doc', 'docs-share-anyone', array(
 	'show_in_rest' => true,
 	'single' => true,
