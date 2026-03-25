@@ -58,6 +58,9 @@ register_activation_hook( __FILE__, function() {
 	$role->add_cap( 'edit_docs' );
 	$role->add_cap( 'edit_published_docs' );
 	$role->add_cap( 'upload_files' );
+	// Required to read global styles (wp_global_styles CPT) which the block
+	// editor fetches client-side for theme features like padding-aware alignments.
+	$role->add_cap( 'read' );
 
 	require 'register.php';
 	flush_rewrite_rules();
@@ -427,6 +430,24 @@ add_action( 'pre_get_posts', function( $query ) {
 		$query->set( 'post_status', 'draft' );
 	}
 } );
+
+// Allow doc-capable users to read global styles. The block editor fetches the
+// wp_global_styles entity client-side to resolve theme features (e.g. padding-aware
+// alignments). read_post for this CPT maps to edit_posts via map_meta_cap, which
+// doc-only users don't have.
+add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $args ) {
+	if ( $args[0] !== 'read_post' || ! isset( $args[2] ) ) {
+		return $user_caps;
+	}
+
+	$post = get_post( $args[2] );
+
+	if ( $post && $post->post_type === 'wp_global_styles' && ! empty( $user_caps['edit_docs'] ) ) {
+		$user_caps['edit_posts'] = true;
+	}
+
+	return $user_caps;
+}, 10, 3 );
 
 // A user should only be able to edit a document if they are invited or are
 // the author.
