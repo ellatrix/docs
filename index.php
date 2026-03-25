@@ -19,45 +19,30 @@ register_activation_hook( __FILE__, function() {
 	remove_role( 'docs_anon' );
 	add_role( 'docs_anon', __( 'Anonymous (Docs)', 'docs' ) );
 
-	$role = get_role( 'administrator' );
-
-	$role->add_cap( 'create_docs' );
-	$role->add_cap( 'edit_others_docs' );
-	$role->add_cap( 'edit_docs' );
-	$role->add_cap( 'edit_published_docs' );
-
-	$role = get_role( 'editor' );
-
-	$role->add_cap( 'create_docs' );
-	$role->add_cap( 'edit_others_docs' );
-	$role->add_cap( 'edit_docs' );
-	$role->add_cap( 'edit_published_docs' );
+	// Admin, editor: full doc caps including editing others' docs.
+	foreach ( array( 'administrator', 'editor' ) as $role_name ) {
+		$role = get_role( $role_name );
+		$role->add_cap( 'create_docs' );
+		$role->add_cap( 'edit_others_docs' );
+		$role->add_cap( 'edit_docs' );
+		$role->add_cap( 'edit_published_docs' );
+	}
 
 	$role = get_role( 'author' );
-
 	$role->add_cap( 'create_docs' );
-	$role->add_cap( 'edit_others_docs' );
 	$role->add_cap( 'edit_docs' );
 	$role->add_cap( 'edit_published_docs' );
 
 	$role = get_role( 'contributor' );
-
-	$role->add_cap( 'edit_others_docs' );
+	$role->add_cap( 'create_docs' );
 	$role->add_cap( 'edit_docs' );
-	$role->add_cap( 'edit_published_docs' );
 
-	$role = get_role( 'subscriber' );
-
-	$role->add_cap( 'edit_others_docs' );
-	$role->add_cap( 'edit_docs' );
-	$role->add_cap( 'edit_published_docs' );
-
+	// docs_anon: minimal caps. edit_docs is needed as a generic capability
+	// check (e.g. WP 7.0 collab sync endpoint). Per-doc access is still
+	// controlled by the user_has_cap filter based on sharing settings.
 	$role = get_role( 'docs_anon' );
 
-	$role->add_cap( 'edit_others_docs' );
 	$role->add_cap( 'edit_docs' );
-	$role->add_cap( 'edit_published_docs' );
-	$role->add_cap( 'upload_files' );
 	// Required to read global styles (wp_global_styles CPT) which the block
 	// editor fetches client-side for theme features like padding-aware alignments.
 	$role->add_cap( 'read' );
@@ -449,58 +434,57 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 	return $user_caps;
 }, 10, 3 );
 
-// A user should only be able to edit a document if they are invited or are
-// the author.
+// Grant or deny doc editing capabilities based on sharing settings.
+// Users who don't already have edit_others_docs (subscribers, anon) get it
+// dynamically when the doc is shared with them. Users who do have it get it
+// revoked when the doc is not shared with them (unless they're the author).
 add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $args ) {
-	$requested_cap = $args[ 0 ];
-
-	if ( $requested_cap !== 'edit_post' ) {
+	if ( ! in_array( $args[0], array( 'edit_post', 'read_post' ), true ) || ! isset( $args[2] ) ) {
 		return $user_caps;
 	}
 
-	if ( ! isset( $args[ 2 ] ) ) {
+	$post = get_post( $args[2] );
+
+	if ( ! $post || $post->post_type !== 'doc' ) {
 		return $user_caps;
 	}
 
-	$object_id = $args[ 2 ];
-	$post = get_post( $object_id );
+	$user_id = $args[1];
 
-	if ( $post->post_type !== 'doc' ) {
-		return $user_caps;
-	}
-
-	$user_id = $args[ 1 ];
-
+	// Authors can always edit their own docs.
 	if ( (int) $post->post_author === $user_id ) {
 		return $user_caps;
 	}
 
-	$anyone = get_post_meta( $object_id, 'docs-share-anyone', true );
+	$anyone = get_post_meta( $post->ID, 'docs-share-anyone', true );
 
+	// "Anyone with the link" — grant editing caps.
 	if ( $anyone === 'anyone' ) {
+		$user_caps['edit_docs']           = true;
+		$user_caps['edit_others_docs']    = true;
+		$user_caps['edit_published_docs'] = true;
 		return $user_caps;
 	}
 
-	if ( $anyone !== 'email' ) {
-		unset( $user_caps['edit_docs'], $user_caps['edit_others_docs'], $user_caps['edit_published_docs'] );
-		return $user_caps;
+	// "Email restricted" — grant caps only if user's email is in the list.
+	if ( $anyone === 'email' ) {
+		$email_addresses = get_post_meta( $post->ID, 'docs-share-email-addresses', true );
+
+		if ( $email_addresses ) {
+			$user = get_userdata( $user_id );
+			$email_addresses = preg_split( '/[\s,]+/', $email_addresses );
+
+			if ( $user && in_array( $user->user_email, $email_addresses, true ) ) {
+				$user_caps['edit_docs']           = true;
+				$user_caps['edit_others_docs']    = true;
+				$user_caps['edit_published_docs'] = true;
+				return $user_caps;
+			}
+		}
 	}
 
-	$user = get_userdata( $user_id );
-	$email_addresses = get_post_meta( $object_id, 'docs-share-email-addresses', true );
-
-	if ( ! $email_addresses ) {
-		unset( $user_caps['edit_docs'], $user_caps['edit_others_docs'], $user_caps['edit_published_docs'] );
-		return $user_caps;
-	}
-
-	$email_addresses = preg_split( '/[\s,]+/', $email_addresses );
-
-	if ( ! in_array( $user->user_email, $email_addresses ) ) {
-		unset( $user_caps['edit_docs'], $user_caps['edit_others_docs'], $user_caps['edit_published_docs'] );
-		return $user_caps;
-	}
-
+	// Not shared — deny doc caps for non-authors.
+	unset( $user_caps['edit_docs'], $user_caps['edit_others_docs'], $user_caps['edit_published_docs'] );
 	return $user_caps;
 }, 10, 3 );
 
