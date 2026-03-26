@@ -7,19 +7,11 @@ async function getLastEmail( page ) {
 	return response.json();
 }
 
-async function clearLastEmail( page ) {
-	await page.request.post(
-		'/index.php?rest_route=/docs-test/v1/clear-email'
-	);
-}
-
 test.describe( 'Email sharing flow', () => {
-	test.beforeEach( async ( { page } ) => {
-		await clearLastEmail( page );
-	} );
 
 	test( 'adding an email in the share panel sends an invite, and the recipient can open the editor', async ( {
 		admin,
+		editor,
 		page,
 		requestUtils,
 	} ) => {
@@ -40,8 +32,7 @@ test.describe( 'Email sharing flow', () => {
 		await emailInput.press( 'Enter' );
 
 		// 4. Save to trigger the invitation email.
-		await page.keyboard.press( 'Meta+s' );
-		await page.waitForTimeout( 1000 );
+		await editor.saveDraft();
 
 		// 5. Check that an invitation email was sent.
 		const email = await getLastEmail( page );
@@ -85,7 +76,6 @@ test.describe( 'Email sharing flow', () => {
 		await expect( page.locator( '#wp-submit' ) ).toBeVisible();
 
 		// 10. Submit the email form to request a new magic link.
-		await clearLastEmail( page );
 		await page.fill( '#user_login', 'invited@example.com' );
 		await page.click( '#wp-submit' );
 		await expect( page ).toHaveURL( /checkemail=confirm/ );
