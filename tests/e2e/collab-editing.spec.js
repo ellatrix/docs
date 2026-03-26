@@ -33,7 +33,10 @@ test.describe( 'Collaborative editing', () => {
 		).toBeVisible();
 
 		// 3. Set "Anyone with the link" to Edit via the Share panel.
-		await page.getByRole( 'button', { name: 'Share' } ).click();
+		const shareButton = page.getByRole( 'button', { name: 'Share' } );
+		if ( await shareButton.getAttribute( 'aria-expanded' ) !== 'true' ) {
+			await shareButton.click();
+		}
 		await page.locator( '.docs-share-access-select select' ).selectOption( 'anyone' );
 		await editor.saveDraft();
 

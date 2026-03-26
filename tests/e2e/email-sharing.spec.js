@@ -35,7 +35,10 @@ test.describe( 'Email sharing flow', () => {
 		await admin.editPost( doc.id );
 
 		// 3. Open the Share panel and add an email.
-		await page.getByRole( 'button', { name: 'Share' } ).click();
+		const shareButton = page.getByRole( 'button', { name: 'Share' } );
+		if ( await shareButton.getAttribute( 'aria-expanded' ) !== 'true' ) {
+			await shareButton.click();
+		}
 		const emailInput = page.getByPlaceholder( 'Add people by email' );
 		await emailInput.fill( 'invited@example.com' );
 		await emailInput.press( 'Enter' );

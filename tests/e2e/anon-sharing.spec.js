@@ -28,7 +28,10 @@ test.describe( 'Anonymous link sharing flow', () => {
 		await admin.editPost( doc.id );
 
 		// 3. Open the Share panel and set "Anyone with the link" to Edit.
-		await page.getByRole( 'button', { name: 'Share' } ).click();
+		const shareButton = page.getByRole( 'button', { name: 'Share' } );
+		if ( await shareButton.getAttribute( 'aria-expanded' ) !== 'true' ) {
+			await shareButton.click();
+		}
 		await page.locator( '.docs-share-access-select select' ).selectOption( 'anyone' );
 
 		// 4. Save.
