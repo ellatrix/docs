@@ -14,6 +14,10 @@ async function clearLastEmail( page ) {
 }
 
 test.describe( 'Email sharing flow', () => {
+	test.beforeEach( async ( { page } ) => {
+		await clearLastEmail( page );
+	} );
+
 	test( 'adding an email in the share panel sends an invite, and the recipient can open the editor', async ( {
 		admin,
 		page,
@@ -28,7 +32,6 @@ test.describe( 'Email sharing flow', () => {
 
 		// 2. Open the doc in the editor.
 		await admin.editPost( doc.id );
-		await clearLastEmail( page );
 
 		// 3. Open the Share panel and add an email.
 		await page.getByRole( 'button', { name: 'Share' } ).click();
@@ -37,10 +40,8 @@ test.describe( 'Email sharing flow', () => {
 		await emailInput.press( 'Enter' );
 
 		// 4. Save to trigger the invitation email.
-		await page.screenshot( { path: 'test-results/before-save.png' } );
 		await page.keyboard.press( 'Meta+s' );
-		await page.waitForTimeout( 2000 );
-		await page.screenshot( { path: 'test-results/after-save.png' } );
+		await page.waitForTimeout( 1000 );
 
 		// 5. Check that an invitation email was sent.
 		const email = await getLastEmail( page );
