@@ -82,5 +82,36 @@ test.describe( 'Email sharing flow', () => {
 
 		await expect( page.locator( '#user_login' ) ).toBeVisible();
 		await expect( page.locator( '#wp-submit' ) ).toBeVisible();
+
+		// 10. Submit the email form to request a new magic link.
+		await clearLastEmail( page );
+		await page.fill( '#user_login', 'invited@example.com' );
+		await page.click( '#wp-submit' );
+		await expect( page ).toHaveURL( /checkemail=confirm/ );
+
+		// 11. Check that a new magic link email was sent.
+		const email2 = await getLastEmail( page );
+		expect( email2.to ).toBe( 'invited@example.com' );
+		expect( email2.message ).toContain( 'action=rp' );
+
+		// 12. Use the new magic link to open the editor.
+		const urlMatch2 = email2.message.match( /(http[^\s]+action=rp[^\s]+)/ );
+		expect( urlMatch2 ).toBeTruthy();
+
+		await page.context().clearCookies();
+		await page.goto( urlMatch2[ 1 ] );
+
+		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/, {
+			timeout: 10000,
+		} );
+
+		await page
+			.getByRole( 'button', { name: 'Close', exact: true } )
+			.click( { timeout: 5000 } )
+			.catch( () => {} );
+
+		await expect(
+			page.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( 'Sharing Test' )
+		).toBeVisible( { timeout: 10000 } );
 	} );
 } );
