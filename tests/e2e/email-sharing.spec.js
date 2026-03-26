@@ -1,5 +1,7 @@
 const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
 
+const BASE_URL = process.env.WP_BASE_URL || 'http://localhost:2026';
+
 async function getLastEmail( page ) {
 	const response = await page.request.get(
 		'/index.php?rest_route=/docs-test/v1/last-email'
@@ -50,38 +52,43 @@ test.describe( 'Email sharing flow', () => {
 		expect( lines[ 1 ] ).toBe( 'admin from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
 		expect( lines[ 2 ] ).toMatch( /^http:\/\/[^/]+\/\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
 
-		// 6. Extract the magic link from the email.
+		// 6. Open the magic link as a logged-out user.
 		const magicLink = lines[ 2 ];
+		const ctx1 = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
+		const page1 = await ctx1.newPage();
 
-		// 7. Open the magic link as a logged-out user.
-		await page.context().clearCookies();
-		await page.goto( magicLink );
+		try {
+			await page1.goto( magicLink );
+			await expect( page1 ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
+			await dismissWelcomeModal( page1 );
 
-		// The magic link sets a cookie and redirects to the permalink,
-		// then the logged-in user gets redirected to the editor.
-		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
+			// 7. Verify the editor loaded with the doc title.
+			await expect(
+				page1.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( 'Sharing Test' )
+			).toBeVisible();
+		} finally {
+			await ctx1.close();
+		}
 
-		// Dismiss the welcome modal if it appears.
-		await dismissWelcomeModal( page );
+		// 8. Visit the doc link again logged out — should show the email form.
+		const ctx2 = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
+		const page2 = await ctx2.newPage();
 
-		// 8. Verify the editor loaded with the doc title.
-		await expect(
-			editor.canvas.getByText( 'Sharing Test' )
-		).toBeVisible();
+		try {
+			await page2.goto( magicLink );
 
-		// 9. Log out and visit the doc link again — should show the email form.
-		await page.context().clearCookies();
-		await page.goto( magicLink );
+			await expect( page2.locator( '#user_login' ) ).toBeVisible();
+			await expect( page2.locator( '#wp-submit' ) ).toBeVisible();
 
-		await expect( page.locator( '#user_login' ) ).toBeVisible();
-		await expect( page.locator( '#wp-submit' ) ).toBeVisible();
+			// 9. Submit the email form to request a new magic link.
+			await page2.fill( '#user_login', 'invited@example.com' );
+			await page2.click( '#wp-submit' );
+			await expect( page2 ).toHaveURL( /checkemail=confirm/ );
+		} finally {
+			await ctx2.close();
+		}
 
-		// 10. Submit the email form to request a new magic link.
-		await page.fill( '#user_login', 'invited@example.com' );
-		await page.click( '#wp-submit' );
-		await expect( page ).toHaveURL( /checkemail=confirm/ );
-
-		// 11. Check that a new magic link email was sent.
+		// 10. Check that a new magic link email was sent.
 		const email2 = await getLastEmail( page );
 		const lines2 = email2.message.split( '\r\n\r\n' );
 		expect( email2.to ).toBe( 'invited@example.com' );
@@ -90,18 +97,21 @@ test.describe( 'Email sharing flow', () => {
 		expect( lines2[ 1 ] ).toBe( 'admin from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
 		expect( lines2[ 2 ] ).toMatch( /^http:\/\/[^/]+\/\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
 
-		// 12. Use the new magic link to open the editor.
+		// 11. Use the new magic link to open the editor.
 		const magicLink2 = lines2[ 2 ];
+		const ctx3 = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
+		const page3 = await ctx3.newPage();
 
-		await page.context().clearCookies();
-		await page.goto( magicLink2 );
+		try {
+			await page3.goto( magicLink2 );
+			await expect( page3 ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
+			await dismissWelcomeModal( page3 );
 
-		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
-
-		await dismissWelcomeModal( page );
-
-		await expect(
-			editor.canvas.getByText( 'Sharing Test' )
-		).toBeVisible();
+			await expect(
+				page3.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( 'Sharing Test' )
+			).toBeVisible();
+		} finally {
+			await ctx3.close();
+		}
 	} );
 } );

@@ -1,5 +1,7 @@
 const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
 
+const BASE_URL = process.env.WP_BASE_URL || 'http://localhost:2026';
+
 async function dismissWelcomeModal( page ) {
 	const dialog = page.getByRole( 'dialog', { name: 'Welcome to the editor' } );
 	if ( await dialog.isVisible() ) {
@@ -27,33 +29,39 @@ test.describe( 'Anonymous link sharing flow', () => {
 
 		// 3. Open the Share panel and set "Anyone with the link" to Edit.
 		await page.getByRole( 'button', { name: 'Share' } ).click();
-		await page.getByLabel( 'General access' ).selectOption( 'anyone' );
+		await page.locator( '.docs-share-access-select select' ).selectOption( 'anyone' );
 
 		// 4. Save.
 		await editor.saveDraft();
 
 		// 5. Get the doc permalink.
 		const permalink = doc.link;
+		expect( permalink ).toMatch( /\?doc=[a-f0-9]{60}$/ );
 
 		// 6. Visit the link as a logged-out user.
-		expect( permalink ).toMatch( /\?doc=[a-f0-9]{60}$/ );
-		await page.context().clearCookies();
-		await page.goto( permalink );
+		const anonContext = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
+		const anonPage = await anonContext.newPage();
 
-		// 7. Should be redirected to the editor (via anon user creation).
-		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
+		try {
+			await anonPage.goto( permalink );
 
-		await dismissWelcomeModal( page );
+			// 7. Should be redirected to the editor (via anon user creation).
+			await expect( anonPage ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
 
-		// 8. Verify the editor loaded with the doc title.
-		await expect(
-			editor.canvas.getByText( 'Public Doc' )
-		).toBeVisible();
+			await dismissWelcomeModal( anonPage );
 
-		// 9. Verify the user is an anonymous animal.
-		const userName = await page.evaluate( () =>
-			wp.data.select( 'core' ).getCurrentUser()?.name
-		);
-		expect( userName ).toMatch( /^Anonymous \w+$/ );
+			// 8. Verify the editor loaded with the doc title.
+			await expect(
+				anonPage.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( 'Public Doc' )
+			).toBeVisible();
+
+			// 9. Verify the user is an anonymous animal.
+			const userName = await anonPage.evaluate( () =>
+				wp.data.select( 'core' ).getCurrentUser()?.name
+			);
+			expect( userName ).toMatch( /^Anonymous \w+$/ );
+		} finally {
+			await anonContext.close();
+		}
 	} );
 } );
