@@ -113,9 +113,12 @@ function docs__send_email( $email_address, $post ) {
 		'login' => rawurlencode( $user->user_login ),
 	), $link );
 
+	$author = get_userdata( get_post( $post )->post_author );
+	$author_name = $author ? $author->display_name : '';
+
 	$message = (
 		"Hi $email_address\r\n\r\n" .
-		"$site_name invites you to edit \"$post_title\". Use the link below to open the editor.\r\n\r\n" .
+		"$author_name from \"$site_name\" invites you to edit \"$post_title\". Use the link below to open the editor.\r\n\r\n" .
 		$link
 	);
 

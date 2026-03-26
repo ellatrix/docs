@@ -43,18 +43,19 @@ test.describe( 'Email sharing flow', () => {
 
 		// 5. Check that an invitation email was sent.
 		const email = await getLastEmail( page );
+		const lines = email.message.split( '\r\n\r\n' );
 		expect( email.to ).toBe( 'invited@example.com' );
-		expect( email.subject ).toContain( 'Invitation to Edit' );
-		expect( email.message ).toContain( 'action=rp' );
-		expect( email.message ).toContain( 'key=' );
+		expect( email.subject ).toBe( 'Invitation to Edit "Sharing Test"' );
+		expect( lines[ 0 ] ).toBe( 'Hi invited@example.com' );
+		expect( lines[ 1 ] ).toBe( 'admin from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
+		expect( lines[ 2 ] ).toMatch( /^http:\/\/[^/]+\/\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
 
 		// 6. Extract the magic link from the email.
-		const urlMatch = email.message.match( /(http[^\s]+action=rp[^\s]+)/ );
-		expect( urlMatch ).toBeTruthy();
+		const magicLink = lines[ 2 ];
 
 		// 7. Open the magic link as a logged-out user.
 		await page.context().clearCookies();
-		await page.goto( urlMatch[ 1 ] );
+		await page.goto( magicLink );
 
 		// The magic link sets a cookie and redirects to the permalink,
 		// then the logged-in user gets redirected to the editor.
@@ -70,9 +71,7 @@ test.describe( 'Email sharing flow', () => {
 
 		// 9. Log out and visit the doc link again — should show the email form.
 		await page.context().clearCookies();
-		// Extract the doc permalink from the magic link URL (everything before &action=rp).
-		const docPermalink = urlMatch[ 1 ].split( '&action=rp' )[ 0 ];
-		await page.goto( docPermalink );
+		await page.goto( magicLink );
 
 		await expect( page.locator( '#user_login' ) ).toBeVisible();
 		await expect( page.locator( '#wp-submit' ) ).toBeVisible();
@@ -84,15 +83,18 @@ test.describe( 'Email sharing flow', () => {
 
 		// 11. Check that a new magic link email was sent.
 		const email2 = await getLastEmail( page );
+		const lines2 = email2.message.split( '\r\n\r\n' );
 		expect( email2.to ).toBe( 'invited@example.com' );
-		expect( email2.message ).toContain( 'action=rp' );
+		expect( email2.subject ).toBe( 'Invitation to Edit "Sharing Test"' );
+		expect( lines2[ 0 ] ).toBe( 'Hi invited@example.com' );
+		expect( lines2[ 1 ] ).toBe( 'admin from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
+		expect( lines2[ 2 ] ).toMatch( /^http:\/\/[^/]+\/\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
 
 		// 12. Use the new magic link to open the editor.
-		const urlMatch2 = email2.message.match( /(http[^\s]+action=rp[^\s]+)/ );
-		expect( urlMatch2 ).toBeTruthy();
+		const magicLink2 = lines2[ 2 ];
 
 		await page.context().clearCookies();
-		await page.goto( urlMatch2[ 1 ] );
+		await page.goto( magicLink2 );
 
 		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
 
