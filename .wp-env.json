@@ -9,5 +9,12 @@
 		"SCRIPT_DEBUG": true
 	},
 	"port": 2025,
-	"testsPort": 2026
+	"testsPort": 2026,
+	"env": {
+		"tests": {
+			"mappings": {
+				"wp-content/mu-plugins/mail-capture.php": "./tests/e2e/mu-plugins/mail-capture.php"
+			}
+		}
+	}
 }

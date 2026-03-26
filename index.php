@@ -211,6 +211,12 @@ add_action( 'template_redirect', function() {
 				exit;
 			}
 
+			if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'docs-magic-link' ) ) {
+				$doc_errors->add( 'invalid_nonce', __( '<strong>Error</strong>: Security check failed. Please try again.', 'docs' ) );
+				include ABSPATH . 'wp-login.php';
+				exit;
+			}
+
 			if (
 				empty( $_POST['user_login'] ) ||
 				! is_string( $_POST['user_login'] )
@@ -297,6 +303,7 @@ add_action( 'login_init', function() {
 			<label for="user_login" ><?php _e( 'Email Address', 'docs' ); ?><br />
 			<input type="text" name="user_login" id="user_login" class="input" value="<?php echo esc_attr( $user_login ); ?>" size="20" autocapitalize="off" /></label>
 		</p>
+		<?php wp_nonce_field( 'docs-magic-link' ); ?>
 		<p class="submit">
 			<input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="<?php esc_attr_e( 'Get Link' ); ?>" />
 		</p>
