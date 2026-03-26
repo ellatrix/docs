@@ -73,5 +73,14 @@ test.describe( 'Email sharing flow', () => {
 		await expect(
 			page.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( 'Sharing Test' )
 		).toBeVisible( { timeout: 10000 } );
+
+		// 9. Log out and visit the doc link again — should show the email form.
+		await page.context().clearCookies();
+		// Extract the doc permalink from the magic link URL (everything before &action=rp).
+		const docPermalink = urlMatch[ 1 ].split( '&action=rp' )[ 0 ];
+		await page.goto( docPermalink );
+
+		await expect( page.locator( '#user_login' ) ).toBeVisible();
+		await expect( page.locator( '#wp-submit' ) ).toBeVisible();
 	} );
 } );
