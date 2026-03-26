@@ -167,7 +167,8 @@ add_action( 'template_redirect', function() {
 
 			$anyone = get_post_meta( $post->ID, 'docs-share-anyone', true );
 
-			if ( $anyone === 'anyone' ) {
+			// "anyone with the link" — any of the link-sharing values.
+			if ( in_array( $anyone, array( 'anyone', 'anyone-view', 'anyone-comment' ), true ) ) {
 				$animals = array(
 					'1f436' => __( 'Dog', 'docs' ),
 					'1f431' => __( 'Cat', 'docs' ),
@@ -202,7 +203,12 @@ add_action( 'template_redirect', function() {
 				die;
 			}
 
-			if ( $anyone !== 'email' ) {
+			// Check if there are people with email access.
+			$has_email_sharing = get_post_meta( $post->ID, 'docs-share-email-addresses', true )
+				|| get_post_meta( $post->ID, 'docs-share-email-addresses-view', true )
+				|| get_post_meta( $post->ID, 'docs-share-email-addresses-comment', true );
+
+			if ( ! $has_email_sharing ) {
 				exit;
 			}
 
@@ -234,11 +240,15 @@ add_action( 'template_redirect', function() {
 				exit;
 			}
 
-			$email_addresses = get_post_meta( $post->ID, 'docs-share-email-addresses', true );
-			$email_addresses = preg_split( '/[\s,]+/', $email_addresses );
+			$all_emails = array_merge(
+				preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses', true ) ?: '' ),
+				preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses-view', true ) ?: '' ),
+				preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses-comment', true ) ?: '' )
+			);
+			$all_emails = array_filter( $all_emails );
 
-			if ( ! in_array( $email_address, $email_addresses ) ) {
-				$doc_errors->add( 'empty_username', __( '<strong>Error</strong>: You do not have acces to edit this document.', 'docs' ) );
+			if ( ! in_array( $email_address, $all_emails ) ) {
+				$doc_errors->add( 'empty_username', __( '<strong>Error</strong>: You do not have access to this document.', 'docs' ) );
 				include ABSPATH . 'wp-login.php';
 				exit;
 			}
@@ -517,27 +527,28 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 	$anyone = get_post_meta( $post->ID, 'docs-share-anyone', true );
 
 	// "Anyone with the link" — grant editing caps.
-	if ( $anyone === 'anyone' ) {
+	if ( in_array( $anyone, array( 'anyone', 'anyone-view', 'anyone-comment' ), true ) ) {
 		$user_caps['edit_docs']           = true;
 		$user_caps['edit_others_docs']    = true;
 		$user_caps['edit_published_docs'] = true;
 		return $user_caps;
 	}
 
-	// "Email restricted" — grant caps only if user's email is in the list.
-	if ( $anyone === 'email' ) {
-		$email_addresses = get_post_meta( $post->ID, 'docs-share-email-addresses', true );
+	// Check if user's email is in any of the sharing lists.
+	$user = get_userdata( $user_id );
+	if ( $user ) {
+		$all_emails = array_merge(
+			preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses', true ) ?: '' ),
+			preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses-view', true ) ?: '' ),
+			preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses-comment', true ) ?: '' )
+		);
+		$all_emails = array_filter( $all_emails );
 
-		if ( $email_addresses ) {
-			$user = get_userdata( $user_id );
-			$email_addresses = preg_split( '/[\s,]+/', $email_addresses );
-
-			if ( $user && in_array( $user->user_email, $email_addresses, true ) ) {
-				$user_caps['edit_docs']           = true;
-				$user_caps['edit_others_docs']    = true;
-				$user_caps['edit_published_docs'] = true;
-				return $user_caps;
-			}
+		if ( in_array( $user->user_email, $all_emails, true ) ) {
+			$user_caps['edit_docs']           = true;
+			$user_caps['edit_others_docs']    = true;
+			$user_caps['edit_published_docs'] = true;
+			return $user_caps;
 		}
 	}
 
