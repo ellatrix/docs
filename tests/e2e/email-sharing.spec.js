@@ -7,6 +7,13 @@ async function getLastEmail( page ) {
 	return response.json();
 }
 
+async function dismissWelcomeModal( page ) {
+	const dialog = page.getByRole( 'dialog', { name: 'Welcome to the editor' } );
+	if ( await dialog.isVisible() ) {
+		await dialog.getByRole( 'button', { name: 'Close' } ).click();
+	}
+}
+
 test.describe( 'Email sharing flow', () => {
 
 	test( 'adding an email in the share panel sends an invite, and the recipient can open the editor', async ( {
@@ -51,20 +58,15 @@ test.describe( 'Email sharing flow', () => {
 
 		// The magic link sets a cookie and redirects to the permalink,
 		// then the logged-in user gets redirected to the editor.
-		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/, {
-			timeout: 15000,
-		} );
+		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
 
 		// Dismiss the welcome modal if it appears.
-		await page
-			.getByRole( 'button', { name: 'Close', exact: true } )
-			.click( { timeout: 5000 } )
-			.catch( () => {} );
+		await dismissWelcomeModal( page );
 
 		// 8. Verify the editor loaded with the doc title.
 		await expect(
-			page.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( 'Sharing Test' )
-		).toBeVisible( { timeout: 10000 } );
+			editor.canvas.getByText( 'Sharing Test' )
+		).toBeVisible();
 
 		// 9. Log out and visit the doc link again — should show the email form.
 		await page.context().clearCookies();
@@ -92,17 +94,12 @@ test.describe( 'Email sharing flow', () => {
 		await page.context().clearCookies();
 		await page.goto( urlMatch2[ 1 ] );
 
-		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/, {
-			timeout: 10000,
-		} );
+		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
 
-		await page
-			.getByRole( 'button', { name: 'Close', exact: true } )
-			.click( { timeout: 5000 } )
-			.catch( () => {} );
+		await dismissWelcomeModal( page );
 
 		await expect(
-			page.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( 'Sharing Test' )
-		).toBeVisible( { timeout: 10000 } );
+			editor.canvas.getByText( 'Sharing Test' )
+		).toBeVisible();
 	} );
 } );
