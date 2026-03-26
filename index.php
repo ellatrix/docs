@@ -169,20 +169,32 @@ add_action( 'template_redirect', function() {
 
 			if ( $anyone === 'anyone' ) {
 				$animals = array(
-					'1f436', '1f431', '1f42d', '1f439', '1f430', '1f98a',
-					'1f43b', '1f43c', '1f428', '1f42f', '1f981', '1f435',
+					'1f436' => __( 'Dog', 'docs' ),
+					'1f431' => __( 'Cat', 'docs' ),
+					'1f42d' => __( 'Mouse', 'docs' ),
+					'1f439' => __( 'Hamster', 'docs' ),
+					'1f430' => __( 'Rabbit', 'docs' ),
+					'1f98a' => __( 'Fox', 'docs' ),
+					'1f43b' => __( 'Bear', 'docs' ),
+					'1f43c' => __( 'Panda', 'docs' ),
+					'1f428' => __( 'Koala', 'docs' ),
+					'1f42f' => __( 'Tiger', 'docs' ),
+					'1f981' => __( 'Lion', 'docs' ),
+					'1f435' => __( 'Monkey', 'docs' ),
 				);
+
+				$animal_code = array_rand( $animals );
+				$animal_name = $animals[ $animal_code ];
 
 				$id = wp_insert_user( array(
 					'user_pass' => wp_generate_password(),
 					'user_login' => wp_generate_password(),
-					// We could randomise for fun. :)
-					'display_name' => __( 'Anonymous', 'docs' ),
+					'display_name' => sprintf( __( 'Anonymous %s', 'docs' ), $animal_name ),
 					'admin_color' => 'coffee',
 					'role' => 'docs_anon',
 				) );
 
-				add_user_meta( $id, 'animal', $animals[ array_rand( $animals ) ], true );
+				add_user_meta( $id, 'animal', $animal_code, true );
 
 				// Reload with auth cookie.
 				wp_set_auth_cookie( $id, true );
@@ -294,18 +306,32 @@ add_action( 'login_init', function() {
 	exit;
 } );
 
-add_filter( 'get_avatar_url', function( $url, $id ) {
-	if ( is_string( $id ) ) {
-		$id = get_user_by( 'email', $id );
+add_filter( 'get_avatar_url', function( $url, $id_or_email ) {
+	if ( $id_or_email instanceof WP_User ) {
+		$user_id = $id_or_email->ID;
+	} elseif ( is_object( $id_or_email ) && isset( $id_or_email->user_id ) ) {
+		$user_id = $id_or_email->user_id;
+	} elseif ( is_numeric( $id_or_email ) ) {
+		$user_id = (int) $id_or_email;
+	} elseif ( is_string( $id_or_email ) ) {
+		$user = get_user_by( 'email', $id_or_email );
+		$user_id = $user ? $user->ID : 0;
+	} else {
+		return $url;
 	}
 
-	$animal = get_user_meta( $id, 'animal', true );
+	if ( ! $user_id ) {
+		return $url;
+	}
+
+	$animal = get_user_meta( $user_id, 'animal', true );
 
 	if ( ! $animal ) {
 		return $url;
 	}
 
-	return "https://s.w.org/images/core/emoji/12.0.0-1/svg/$animal.svg";
+	$svg_base = apply_filters( 'emoji_svg_url', 'https://s.w.org/images/core/emoji/17.0.2/svg/' );
+	return $svg_base . $animal . '.svg';
 }, 10, 2 );
 
 // Make the permalink pretty even though the post type stays in draft status.
