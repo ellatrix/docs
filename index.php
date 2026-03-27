@@ -407,6 +407,58 @@ add_action( 'pre_get_users', function( $query ) {
 	$query->set( 'role__not_in', $role_not_in );
 } );
 
+// When creating a new user with an email that belongs to a docs_anon user,
+// upgrade the existing user instead of blocking with "email already exists".
+// Intercepts the REST API user creation to upgrade the docs_anon user
+// and return it as if the creation succeeded.
+add_filter( 'rest_pre_insert_user', function( $prepared_user, $request ) {
+	if ( empty( $prepared_user->user_email ) ) {
+		return $prepared_user;
+	}
+
+	$existing_id = email_exists( $prepared_user->user_email );
+	if ( ! $existing_id ) {
+		return $prepared_user;
+	}
+
+	$existing = get_userdata( $existing_id );
+	if ( ! $existing || ! in_array( 'docs_anon', $existing->roles, true ) ) {
+		return $prepared_user;
+	}
+
+	// Upgrade the existing user.
+	$update_args = array( 'ID' => $existing_id );
+
+	if ( ! empty( $prepared_user->display_name ) ) {
+		$update_args['display_name'] = $prepared_user->display_name;
+	}
+	if ( ! empty( $prepared_user->user_pass ) ) {
+		$update_args['user_pass'] = $prepared_user->user_pass;
+	}
+	if ( ! empty( $prepared_user->user_nicename ) ) {
+		$update_args['user_nicename'] = $prepared_user->user_nicename;
+	}
+
+	$roles = $request->get_param( 'roles' );
+	if ( ! empty( $roles ) ) {
+		$update_args['role'] = $roles[0];
+	}
+
+	wp_update_user( $update_args );
+
+	// Set the ID to the existing user so the REST controller
+	// returns the updated user instead of trying to insert a new one.
+	$prepared_user->ID = $existing_id;
+
+	return $prepared_user;
+}, 10, 2 );
+
+// Hide the "Anonymous (Docs)" role tab from the admin users list.
+add_filter( 'views_users', function( $views ) {
+	unset( $views['docs_anon'] );
+	return $views;
+} );
+
 add_action( 'enqueue_block_editor_assets', function() {
 	if ( get_post_type() !== 'doc' ) {
 		return;
