@@ -32,7 +32,7 @@ test.describe( 'Anonymous link sharing flow', () => {
 		if ( await shareButton.getAttribute( 'aria-expanded' ) !== 'true' ) {
 			await shareButton.click();
 		}
-		await page.locator( '.docs-share-access-select select' ).selectOption( 'anyone' );
+		await page.getByRole( 'combobox', { name: 'General access' } ).selectOption( 'anyone' );
 
 		// 4. Save.
 		await editor.saveDraft();

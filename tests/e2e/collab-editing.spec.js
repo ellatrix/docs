@@ -37,7 +37,7 @@ test.describe( 'Collaborative editing', () => {
 		if ( await shareButton.getAttribute( 'aria-expanded' ) !== 'true' ) {
 			await shareButton.click();
 		}
-		await page.locator( '.docs-share-access-select select' ).selectOption( 'anyone' );
+		await page.getByRole( 'combobox', { name: 'General access' } ).selectOption( 'anyone' );
 		await editor.saveDraft();
 
 		// 4. Open the doc in a fresh browser context (no cookies) as anonymous.

@@ -1,4 +1,3 @@
 node_modules/
 test-results/
 artifacts/
-tests/e2e/storage-state.json
