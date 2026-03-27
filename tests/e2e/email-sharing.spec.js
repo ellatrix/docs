@@ -41,7 +41,18 @@ test.describe( 'Email sharing flow', () => {
 		}
 		const emailInput = page.getByRole( 'combobox', { name: 'Add people' } );
 		await emailInput.fill( 'invited@example.com' );
-		await emailInput.press( 'Enter' );
+		// Select the "Invite" option from the combobox.
+		await page.getByRole( 'option', { name: /Invite/ } ).click();
+
+		// Wait for the user to appear in the people list (async creation).
+		await expect(
+			page.locator( '.docs-share-person-name' ).first()
+		).toBeVisible();
+
+		// Wait for the editor to register the meta change as dirty.
+		await expect(
+			page.getByRole( 'button', { name: 'Save draft' } )
+		).toBeEnabled();
 
 		// 4. Save to trigger the invitation email.
 		await editor.saveDraft();

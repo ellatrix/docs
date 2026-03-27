@@ -46,7 +46,7 @@
 	object-fit: cover;
 }
 
-.docs-share-person-email {
+.docs-share-person-name {
 	flex: 1;
 	min-width: 0;
 	overflow: hidden;

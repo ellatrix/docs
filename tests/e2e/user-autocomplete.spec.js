@@ -69,7 +69,7 @@ test.describe( 'User autocomplete in share panel', () => {
 		await option.click();
 
 		await expect(
-			page.locator( '.docs-share-person-email' ).getByText( 'jane@example.com' )
+			page.locator( '.docs-share-person-name' ).getByText( 'Jane Doe' )
 		).toBeVisible();
 	} );
 
@@ -100,7 +100,7 @@ test.describe( 'User autocomplete in share panel', () => {
 		await input.press( 'Enter' );
 
 		await expect(
-			page.locator( '.docs-share-person-email' ).getByText( 'jane@example.com' )
+			page.locator( '.docs-share-person-name' ).getByText( 'Jane Doe' )
 		).toBeVisible();
 	} );
 } );

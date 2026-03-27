@@ -25,12 +25,11 @@
 		el( Path, { d: 'M17 10h-1.2V7c0-2.1-1.7-3.8-3.8-3.8-2.1 0-3.8 1.7-3.8 3.8v3H7c-.6 0-1 .4-1 1v8c0 .6.4 1 1 1h10c.6 0 1-.4 1-1v-8c0-.6-.4-1-1-1zm-2.8 0H9.8V7c0-1.2 1-2.2 2.2-2.2s2.2 1 2.2 2.2v3z' } )
 	);
 
-	// Meta keys.
 	var ANYONE_KEY = 'docs-share-anyone';
-	var EMAIL_KEYS = {
-		editor: 'docs-share-email-addresses',
-		viewer: 'docs-share-email-addresses-view',
-		commenter: 'docs-share-email-addresses-comment',
+	var META_KEYS = {
+		editor: 'docs-share-edit',
+		viewer: 'docs-share-view',
+		commenter: 'docs-share-comment',
 	};
 
 	// General access options.
@@ -49,37 +48,15 @@
 		{ label: __( 'Remove', 'docs' ), value: 'remove' },
 	];
 
-	function parseEmails( str ) {
-		if ( ! str ) return [];
-		return str.split( /[\s,]+/ ).filter( function ( e ) {
-			return e.length > 0;
-		} );
-	}
-
-	// Build a unified list of {email, role} from the three email meta fields.
+	// Build a unified list of { id, role } from meta.
 	function getPeople( meta ) {
 		var people = [];
-		Object.keys( EMAIL_KEYS ).forEach( function ( role ) {
-			parseEmails( meta[ EMAIL_KEYS[ role ] ] ).forEach( function ( email ) {
-				people.push( { email: email, role: role } );
+		Object.keys( META_KEYS ).forEach( function ( role ) {
+			( meta[ META_KEYS[ role ] ] || [] ).forEach( function ( userId ) {
+				people.push( { id: userId, role: role } );
 			} );
 		} );
 		return people;
-	}
-
-	// Write people back to the three email meta fields.
-	function peopleToMeta( people ) {
-		var lists = { editor: [], viewer: [], commenter: [] };
-		people.forEach( function ( p ) {
-			if ( lists[ p.role ] ) {
-				lists[ p.role ].push( p.email );
-			}
-		} );
-		var update = {};
-		Object.keys( EMAIL_KEYS ).forEach( function ( role ) {
-			update[ EMAIL_KEYS[ role ] ] = lists[ role ].join( ', ' );
-		} );
-		return update;
 	}
 
 	registerPlugin( 'docs-share-settings', {
@@ -96,11 +73,6 @@
 			var userOptions = optionsState[ 0 ];
 			var setUserOptions = optionsState[ 1 ];
 
-			// Map of email -> avatar URL, built from search results.
-			var avatarsState = useState( {} );
-			var avatars = avatarsState[ 0 ];
-			var setAvatars = avatarsState[ 1 ];
-
 			var searchTimer = useRef( null );
 
 			var editPost = useDispatch( 'core/editor' ).editPost;
@@ -115,7 +87,20 @@
 				};
 			} );
 
+			var meta = selected.meta;
+			var link = selected.link;
 			var authorId = selected.authorId;
+			var anyone = meta[ ANYONE_KEY ] || '';
+			var people = getPeople( meta );
+
+			// Resolve user objects for the people list.
+			var users = useSelect( function ( select ) {
+				var result = {};
+				people.forEach( function ( p ) {
+					result[ p.id ] = select( 'core' ).getUser( p.id );
+				} );
+				return result;
+			}, [ people.map( function ( p ) { return p.id; } ).join() ] );
 
 			function fetchUsers( search ) {
 				var path = '/wp/v2/users?per_page=5&context=edit';
@@ -125,26 +110,15 @@
 				if ( search ) {
 					path += '&search=' + encodeURIComponent( search );
 				}
-				apiFetch( { path: path } ).then( function ( users ) {
-					var newAvatars = {};
-					users.forEach( function ( u ) {
-						if ( u.avatar_urls && u.avatar_urls[ '48' ] ) {
-							newAvatars[ u.email ] = u.avatar_urls[ '48' ];
-						}
-					} );
-					setAvatars( function ( prev ) {
-						return Object.assign( {}, prev, newAvatars );
-					} );
-					setUserOptions( users.map( function ( u ) {
-						return { label: u.name + ' (' + u.email + ')', value: u.email };
+				apiFetch( { path: path } ).then( function ( results ) {
+					setUserOptions( results.map( function ( u ) {
+						return { label: u.name + ' (' + u.email + ')', value: u.id };
 					} ) );
 				} ).catch( function () { setUserOptions( [] ); } );
 			}
 
-			// Fetch users on mount and when author changes.
 			useEffect( function () { fetchUsers(); }, [ authorId ] );
 
-			// Debounced search when typing.
 			useEffect( function () {
 				clearTimeout( searchTimer.current );
 				if ( ! filterValue.trim() ) {
@@ -156,11 +130,6 @@
 				}, 300 );
 				return function () { clearTimeout( searchTimer.current ); };
 			}, [ filterValue, authorId ] );
-			var meta = selected.meta;
-			var link = selected.link;
-
-			var anyone = meta[ ANYONE_KEY ] || '';
-			var people = getPeople( meta );
 
 			var copyRef = useCopyToClipboard( function () {
 				return link;
@@ -171,46 +140,61 @@
 				}, 2000 );
 			} );
 
-			function addPerson( email ) {
-				if ( ! email ) return;
-				if ( people.some( function ( p ) { return p.email === email; } ) ) return;
-				var updated = people.concat( { email: email, role: 'editor' } );
-				editPost( { meta: Object.assign( {}, meta, peopleToMeta( updated ) ) } );
+			function addUserIdToMeta( userId, role ) {
+				var key = META_KEYS[ role ];
+				var current = meta[ key ] || [];
+				if ( current.indexOf( userId ) !== -1 ) return;
+				var updated = {};
+				updated[ key ] = current.concat( userId );
+				editPost( { meta: Object.assign( {}, meta, updated ) } );
 				setFilterValue( '' );
 				setUserOptions( [] );
 			}
 
-			// Fetch avatars for people we don't have yet.
-			useEffect( function () {
-				people.forEach( function ( p ) {
-					if ( avatars[ p.email ] ) return;
+		function addPerson( emailOrUserId ) {
+				if ( typeof emailOrUserId === 'number' ) {
+					addUserIdToMeta( emailOrUserId, 'editor' );
+				} else if ( typeof emailOrUserId === 'string' && emailOrUserId.includes( '@' ) ) {
+					var postId = wp.data.select( 'core/editor' ).getCurrentPostId();
 					apiFetch( {
-						path: '/wp/v2/users?search=' + encodeURIComponent( p.email ) + '&per_page=1&context=edit',
-					} ).then( function ( users ) {
-						if ( users.length && users[ 0 ].avatar_urls ) {
-							setAvatars( function ( prev ) {
-								var next = Object.assign( {}, prev );
-								next[ p.email ] = users[ 0 ].avatar_urls[ '48' ];
-								return next;
-							} );
-						}
-					} ).catch( function () {} );
-				} );
-			}, [ people.length ] );
-
-			function removeEmail( email ) {
-				var updated = people.filter( function ( p ) { return p.email !== email; } );
-				editPost( { meta: Object.assign( {}, meta, peopleToMeta( updated ) ) } );
+						path: '/docs/v1/get-or-create-user',
+						method: 'POST',
+						data: { email: emailOrUserId, doc_id: postId },
+					} ).then( function ( user ) {
+						addUserIdToMeta( user.id, 'editor' );
+					} );
+				}
 			}
 
-			function updatePersonRole( email, newRole ) {
-				var updated = people.map( function ( p ) {
-					if ( p.email === email ) {
-						return { email: email, role: newRole };
-					}
-					return p;
+			function removePerson( userId ) {
+				var updated = {};
+				Object.keys( META_KEYS ).forEach( function ( role ) {
+					var current = meta[ META_KEYS[ role ] ] || [];
+					updated[ META_KEYS[ role ] ] = current.filter( function ( id ) {
+						return id !== userId;
+					} );
 				} );
-				editPost( { meta: Object.assign( {}, meta, peopleToMeta( updated ) ) } );
+				editPost( { meta: Object.assign( {}, meta, updated ) } );
+			}
+
+			function updatePersonRole( userId, oldRole, newRole ) {
+				var updated = {};
+				var oldList = ( meta[ META_KEYS[ oldRole ] ] || [] ).filter( function ( id ) {
+					return id !== userId;
+				} );
+				updated[ META_KEYS[ oldRole ] ] = oldList;
+				var newList = ( meta[ META_KEYS[ newRole ] ] || [] ).concat( userId );
+				updated[ META_KEYS[ newRole ] ] = newList;
+				editPost( { meta: Object.assign( {}, meta, updated ) } );
+			}
+
+			// Build combobox options: user search results + raw email option.
+			var comboOptions = userOptions.slice();
+			if ( filterValue.includes( '@' ) && filterValue.trim().length > 3 ) {
+				comboOptions.push( {
+					label: __( 'Invite ', 'docs' ) + filterValue.trim(),
+					value: 'email:' + filterValue.trim(),
+				} );
 			}
 
 			return el(
@@ -245,25 +229,29 @@
 				// People with access.
 				people.length > 0 && el( 'div', { className: 'docs-share-people' },
 					people.map( function ( person ) {
-						return el( 'div', { className: 'docs-share-person-row', key: person.email },
+						var user = users[ person.id ];
+						var displayName = user ? user.name : ( '#' + person.id );
+						var avatarUrl = user && user.avatar_urls ? user.avatar_urls[ '48' ] : null;
+
+						return el( 'div', { className: 'docs-share-person-row', key: person.id },
 							el( 'div', { className: 'docs-share-person-avatar' },
-								avatars[ person.email ]
+								avatarUrl
 									? el( 'img', {
-										src: avatars[ person.email ],
+										src: avatarUrl,
 										alt: '',
 										className: 'docs-share-person-avatar-img',
 									} )
-									: person.email.charAt( 0 ).toUpperCase()
+									: displayName.charAt( 0 ).toUpperCase()
 							),
-							el( 'div', { className: 'docs-share-person-email' }, person.email ),
+							el( 'div', { className: 'docs-share-person-name' }, displayName ),
 							el( SelectControl, {
 								value: person.role,
 								options: PERSON_ROLE_OPTIONS,
 								onChange: function ( value ) {
 									if ( value === 'remove' ) {
-										removeEmail( person.email );
+										removePerson( person.id );
 									} else {
-										updatePersonRole( person.email, value );
+										updatePersonRole( person.id, person.role, value );
 									}
 								},
 								hideLabelFromVision: true,
@@ -277,24 +265,19 @@
 				),
 
 				// Add people input with user autocomplete.
-				el( 'div', {
-					className: 'docs-share-add-person',
-					onKeyDown: function ( e ) {
-						if ( e.key === 'Enter' && filterValue.trim() && filterValue.includes( '@' ) ) {
-							e.preventDefault();
-							addPerson( filterValue.trim() );
-						}
-					},
-				},
+				el( 'div', { className: 'docs-share-add-person' },
 					el( ComboboxControl, {
 						label: __( 'Add people', 'docs' ),
 						hideLabelFromVision: true,
 						placeholder: __( 'Add people by email or name', 'docs' ),
 						value: null,
-						options: userOptions,
-						onChange: function ( email ) {
-							if ( email ) {
-								addPerson( email );
+						options: comboOptions,
+						onChange: function ( value ) {
+							if ( ! value ) return;
+							if ( typeof value === 'string' && value.indexOf( 'email:' ) === 0 ) {
+								addPerson( value.slice( 6 ) );
+							} else {
+								addPerson( value );
 							}
 						},
 						onFilterValueChange: setFilterValue,

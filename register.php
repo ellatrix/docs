@@ -42,23 +42,21 @@ register_post_type( 'doc', array(
 	'menu_icon' => 'dashicons-media-document',
 ) );
 
-register_post_meta( 'doc', 'docs-share-email-addresses', array(
-	'show_in_rest' => true,
-	'single' => true,
-	'type' => 'string',
-) );
+$share_meta_args = array(
+	'type'         => 'array',
+	'single'       => true,
+	'default'      => array(),
+	'show_in_rest' => array(
+		'schema' => array(
+			'type'  => 'array',
+			'items' => array( 'type' => 'integer' ),
+		),
+	),
+);
 
-register_post_meta( 'doc', 'docs-share-email-addresses-view', array(
-	'show_in_rest' => true,
-	'single' => true,
-	'type' => 'string',
-) );
-
-register_post_meta( 'doc', 'docs-share-email-addresses-comment', array(
-	'show_in_rest' => true,
-	'single' => true,
-	'type' => 'string',
-) );
+register_post_meta( 'doc', 'docs-share-edit', $share_meta_args );
+register_post_meta( 'doc', 'docs-share-view', $share_meta_args );
+register_post_meta( 'doc', 'docs-share-comment', $share_meta_args );
 
 register_post_meta( 'doc', 'docs-share-anyone', array(
 	'show_in_rest' => true,

@@ -212,11 +212,13 @@ add_action( 'template_redirect', function() {
 			}
 
 			// Check if there are people with email access.
-			$has_email_sharing = get_post_meta( $post->ID, 'docs-share-email-addresses', true )
-				|| get_post_meta( $post->ID, 'docs-share-email-addresses-view', true )
-				|| get_post_meta( $post->ID, 'docs-share-email-addresses-comment', true );
+			$shared_user_ids = array_merge(
+				get_post_meta( $post->ID, 'docs-share-edit', true ) ?: array(),
+				get_post_meta( $post->ID, 'docs-share-view', true ) ?: array(),
+				get_post_meta( $post->ID, 'docs-share-comment', true ) ?: array()
+			);
 
-			if ( ! $has_email_sharing ) {
+			if ( empty( $shared_user_ids ) ) {
 				exit;
 			}
 
@@ -248,14 +250,14 @@ add_action( 'template_redirect', function() {
 				exit;
 			}
 
-			$all_emails = array_merge(
-				preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses', true ) ?: '' ),
-				preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses-view', true ) ?: '' ),
-				preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses-comment', true ) ?: '' )
-			);
-			$all_emails = array_filter( $all_emails );
+			$user = get_user_by( 'email', $email_address );
+			$shared_ids = array_map( 'intval', array_merge(
+				get_post_meta( $post->ID, 'docs-share-edit', true ) ?: array(),
+				get_post_meta( $post->ID, 'docs-share-view', true ) ?: array(),
+				get_post_meta( $post->ID, 'docs-share-comment', true ) ?: array()
+			) );
 
-			if ( ! in_array( $email_address, $all_emails ) ) {
+			if ( ! $user || ! in_array( $user->ID, $shared_ids, true ) ) {
 				$doc_errors->add( 'empty_username', __( '<strong>Error</strong>: You do not have access to this document.', 'docs' ) );
 				include ABSPATH . 'wp-login.php';
 				exit;
@@ -391,50 +393,12 @@ add_action( 'wp_insert_post_data', function( $data ) {
 	return $data;
 } );
 
-// Store the old meta as a global before it is updated.
-add_action( 'update_postmeta', function( $meta_id, $object_id, $meta_key, $meta_value ) {
-	if ( $meta_key !== 'docs-share-email-addresses' ) {
-		return;
-	}
-
-	global $docs_old_email_addresses;
-
-	$docs_old_email_addresses = get_post_meta( $object_id, $meta_key, true );
-}, 10, 4 );
-
-// Compare the old and new meta. Send an email to any new email addresses found.
-add_action( 'updated_postmeta', function( $meta_id, $object_id, $meta_key, $meta_value ) {
-	if ( $meta_key !== 'docs-share-email-addresses' ) {
-		return;
-	}
-
-	global $docs_old_email_addresses;
-
-	if ( $meta_value !== $docs_old_email_addresses ) {
-		$email_addresses = preg_split( '/[\s,]+/', $meta_value );
-		$old_email_addresses = preg_split( '/[\s,]+/', $docs_old_email_addresses );
-		$diff = array_diff( $email_addresses, $old_email_addresses );
-
-		foreach ( $diff as $email_address ) {
-			docs__send_email( $email_address, $object_id );
-		}
-	}
-}, 10, 4 );
-
-add_action( 'added_post_meta', function( $meta_id, $object_id, $meta_key, $meta_value ) {
-	if ( $meta_key !== 'docs-share-email-addresses' ) {
-		return;
-	}
-
-	$email_addresses = preg_split( '/[\s,]+/', $meta_value );
-
-	foreach ( $email_addresses as $email_address ) {
-		docs__send_email( $email_address, $object_id );
-	}
-}, 10, 4 );
-
-// Hide anonymous users from all user queries (admin list, REST API, etc).
+// Hide anonymous users from list queries (admin list, REST API search, etc).
+// Allow single-user lookups by ID so getUser() works for shared docs_anon users.
 add_action( 'pre_get_users', function( $query ) {
+	if ( $query->get( 'include' ) ) {
+		return;
+	}
 	$role_not_in = $query->get( 'role__not_in' );
 	if ( ! is_array( $role_not_in ) ) {
 		$role_not_in = array();
@@ -468,10 +432,50 @@ add_action( 'enqueue_block_editor_assets', function() {
 			'wp-compose',
 			'wp-api-fetch',
 			'wp-primitives',
-			'wp-api-fetch',
 		),
 		filemtime( dirname( __FILE__ ) . '/index.js' )
 	);
+} );
+
+// REST endpoint to get or create a user by email for the share panel.
+add_action( 'rest_api_init', function() {
+	register_rest_route( 'docs/v1', '/get-or-create-user', array(
+		'methods'             => 'POST',
+		'callback'            => function( WP_REST_Request $request ) {
+			$email = sanitize_email( $request->get_param( 'email' ) );
+			$doc_id = $request->get_param( 'doc_id' );
+
+			if ( ! is_email( $email ) ) {
+				return new WP_Error( 'invalid_email', __( 'Invalid email address.', 'docs' ), array( 'status' => 400 ) );
+			}
+
+			$user = docs__get_or_create_user_by_email( $email );
+
+			// Send invitation email if a doc is specified.
+			if ( $doc_id ) {
+				docs__send_email( $email, $doc_id );
+			}
+
+			return array(
+				'id'          => $user->ID,
+				'name'        => $user->display_name,
+				'email'       => $user->user_email,
+				'avatar_urls' => rest_get_avatar_urls( $user ),
+			);
+		},
+		'permission_callback' => function() {
+			return current_user_can( 'edit_docs' );
+		},
+		'args'                => array(
+			'email' => array(
+				'required' => true,
+				'type'     => 'string',
+			),
+			'doc_id' => array(
+				'type' => 'integer',
+			),
+		),
+	) );
 } );
 
 // Replace the core sync server with our subclass that supports doc capabilities.
@@ -548,22 +552,18 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 		return $user_caps;
 	}
 
-	// Check if user's email is in any of the sharing lists.
-	$user = get_userdata( $user_id );
-	if ( $user ) {
-		$all_emails = array_merge(
-			preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses', true ) ?: '' ),
-			preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses-view', true ) ?: '' ),
-			preg_split( '/[\s,]+/', get_post_meta( $post->ID, 'docs-share-email-addresses-comment', true ) ?: '' )
-		);
-		$all_emails = array_filter( $all_emails );
+	// Check if user ID is in any of the sharing lists.
+	$all_shared_ids = array_map( 'intval', array_merge(
+		get_post_meta( $post->ID, 'docs-share-edit', true ) ?: array(),
+		get_post_meta( $post->ID, 'docs-share-view', true ) ?: array(),
+		get_post_meta( $post->ID, 'docs-share-comment', true ) ?: array()
+	) );
 
-		if ( in_array( $user->user_email, $all_emails, true ) ) {
-			$user_caps['edit_docs']           = true;
-			$user_caps['edit_others_docs']    = true;
-			$user_caps['edit_published_docs'] = true;
-			return $user_caps;
-		}
+	if ( in_array( $user_id, $all_shared_ids, true ) ) {
+		$user_caps['edit_docs']           = true;
+		$user_caps['edit_others_docs']    = true;
+		$user_caps['edit_published_docs'] = true;
+		return $user_caps;
 	}
 
 	// Not shared — deny doc caps for non-authors.
