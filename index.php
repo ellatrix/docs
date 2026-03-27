@@ -428,10 +428,14 @@ add_action( 'added_post_meta', function( $meta_id, $object_id, $meta_key, $meta_
 	}
 }, 10, 4 );
 
-// Hide anonymous users in the admin user list.
-add_filter( 'users_list_table_query_args', function( $args ) {
-	$args[ 'role__not_in' ] = array( 'docs_anon' );
-	return $args;
+// Hide anonymous users from all user queries (admin list, REST API, etc).
+add_action( 'pre_get_users', function( $query ) {
+	$role_not_in = $query->get( 'role__not_in' );
+	if ( ! is_array( $role_not_in ) ) {
+		$role_not_in = array();
+	}
+	$role_not_in[] = 'docs_anon';
+	$query->set( 'role__not_in', $role_not_in );
 } );
 
 add_action( 'enqueue_block_editor_assets', function() {
@@ -457,7 +461,9 @@ add_action( 'enqueue_block_editor_assets', function() {
 			'wp-data',
 			'wp-components',
 			'wp-compose',
+			'wp-api-fetch',
 			'wp-primitives',
+			'wp-api-fetch',
 		),
 		filemtime( dirname( __FILE__ ) . '/index.js' )
 	);

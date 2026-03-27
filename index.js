@@ -10,9 +10,13 @@
 	var Button = wp.components.Button;
 	var Icon = wp.components.Icon;
 	var TextControl = wp.components.TextControl;
+	var Popover = wp.components.Popover;
 	var SVG = wp.primitives.SVG;
 	var Path = wp.primitives.Path;
+	var useEffect = wp.element.useEffect;
+	var useRef = wp.element.useRef;
 	var useCopyToClipboard = wp.compose.useCopyToClipboard;
+	var apiFetch = wp.apiFetch;
 
 	var linkIcon = el( SVG, { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24' },
 		el( Path, { d: 'M10 17.389H8.444A5.194 5.194 0 1 1 8.444 7H10v1.5H8.444a3.694 3.694 0 0 0 0 7.389H10v1.5ZM14 7h1.556a5.194 5.194 0 0 1 0 10.39H14v-1.5h1.556a3.694 3.694 0 0 0 0-7.39H14V7Zm-4.5 6h5v-1.5h-5V13Z' } )
@@ -89,6 +93,34 @@
 			var inputValue = inputState[ 0 ];
 			var setInputValue = inputState[ 1 ];
 
+			var suggestionsState = useState( [] );
+			var suggestions = suggestionsState[ 0 ];
+			var setSuggestions = suggestionsState[ 1 ];
+
+			var selectedIndexState = useState( -1 );
+			var selectedIndex = selectedIndexState[ 0 ];
+			var setSelectedIndex = selectedIndexState[ 1 ];
+
+			var searchTimer = useRef( null );
+			var inputRef = useRef( null );
+
+			useEffect( function () {
+				clearTimeout( searchTimer.current );
+				if ( inputValue.trim().length < 2 ) {
+					setSuggestions( [] );
+					return;
+				}
+				searchTimer.current = setTimeout( function () {
+					apiFetch( {
+						path: '/wp/v2/users?search=' + encodeURIComponent( inputValue.trim() ) + '&per_page=5&context=edit',
+					} ).then( function ( users ) {
+						setSuggestions( users );
+						setSelectedIndex( -1 );
+					} ).catch( function () { setSuggestions( [] ); } );
+				}, 300 );
+				return function () { clearTimeout( searchTimer.current ); };
+			}, [ inputValue ] );
+
 			var editPost = useDispatch( 'core/editor' ).editPost;
 
 			var selected = useSelect( function ( select ) {
@@ -113,15 +145,14 @@
 				}, 2000 );
 			} );
 
-			function addEmail() {
-				var email = inputValue.trim();
+			function addPerson( email ) {
 				if ( ! email ) return;
-				// Check if already in any list.
-				var exists = people.some( function ( p ) { return p.email === email; } );
-				if ( exists ) return;
+				if ( people.some( function ( p ) { return p.email === email; } ) ) return;
 				var updated = people.concat( { email: email, role: 'editor' } );
 				editPost( { meta: Object.assign( {}, meta, peopleToMeta( updated ) ) } );
 				setInputValue( '' );
+				setSuggestions( [] );
+				setSelectedIndex( -1 );
 			}
 
 			function removeEmail( email ) {
@@ -143,24 +174,66 @@
 				PluginDocumentSettingPanel,
 				{ name: 'docs-share', title: __( 'Share', 'docs' ), icon: linkIcon },
 
-				// Add people input.
+				// Add people input with user autocomplete.
 				el( 'form', {
 					className: 'docs-share-add-person',
+					ref: inputRef,
 					onSubmit: function ( e ) {
 						e.preventDefault();
-						addEmail();
+						if ( selectedIndex >= 0 && suggestions[ selectedIndex ] ) {
+							addPerson( suggestions[ selectedIndex ].email );
+						} else {
+							addPerson( inputValue.trim() );
+						}
 					},
 				},
 					el( TextControl, {
-						placeholder: __( 'Add people by email', 'docs' ),
+						placeholder: __( 'Add people by email or name', 'docs' ),
 						value: inputValue,
 						onChange: setInputValue,
+						onKeyDown: function ( e ) {
+							if ( ! suggestions.length ) return;
+							if ( e.key === 'ArrowDown' ) {
+								e.preventDefault();
+								setSelectedIndex( Math.min( selectedIndex + 1, suggestions.length - 1 ) );
+							} else if ( e.key === 'ArrowUp' ) {
+								e.preventDefault();
+								setSelectedIndex( Math.max( selectedIndex - 1, -1 ) );
+							} else if ( e.key === 'Escape' ) {
+								setSuggestions( [] );
+							}
+						},
 						hideLabelFromVision: true,
 						label: __( 'Add people', 'docs' ),
 						autoComplete: 'off',
 						__next40pxDefaultSize: true,
 						__nextHasNoMarginBottom: true,
-					} )
+					} ),
+					suggestions.length > 0 && el( Popover, {
+						placement: 'bottom-start',
+						focusOnMount: false,
+						anchor: inputRef.current,
+						onClose: function () { setSuggestions( [] ); },
+						className: 'docs-share-suggestions-popover',
+					},
+						el( 'ul', { className: 'docs-share-suggestions', role: 'listbox' },
+							suggestions.map( function ( user, i ) {
+								return el( 'li', {
+									key: user.email,
+									role: 'option',
+									'aria-selected': i === selectedIndex,
+									className: 'docs-share-suggestion' + ( i === selectedIndex ? ' is-selected' : '' ),
+									onMouseDown: function ( e ) {
+										e.preventDefault();
+										addPerson( user.email );
+									},
+								},
+									el( 'div', { className: 'docs-share-suggestion-name' }, user.name ),
+									el( 'div', { className: 'docs-share-suggestion-email' }, user.email )
+								);
+							} )
+						)
+					)
 				),
 
 				// People with access.
