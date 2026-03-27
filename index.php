@@ -407,51 +407,90 @@ add_action( 'pre_get_users', function( $query ) {
 	$query->set( 'role__not_in', $role_not_in );
 } );
 
-// When creating a new user with an email that belongs to a docs_anon user,
-// upgrade the existing user instead of blocking with "email already exists".
-// Intercepts the REST API user creation to upgrade the docs_anon user
-// and return it as if the creation succeeded.
-add_filter( 'rest_pre_insert_user', function( $prepared_user, $request ) {
-	if ( empty( $prepared_user->user_email ) ) {
-		return $prepared_user;
+// When a user can't be created because the email belongs to a docs_anon user,
+// show a helpful error with a link to upgrade the account using the form data.
+add_filter( 'user_profile_update_errors', function( $errors ) {
+	if ( ! $errors->get_error_message( 'email_exists' ) ) {
+		return;
 	}
 
-	$existing_id = email_exists( $prepared_user->user_email );
-	if ( ! $existing_id ) {
-		return $prepared_user;
+	$email = isset( $_POST['email'] ) ? sanitize_email( $_POST['email'] ) : '';
+	if ( ! $email ) {
+		return;
 	}
 
-	$existing = get_userdata( $existing_id );
+	$existing = get_user_by( 'email', $email );
 	if ( ! $existing || ! in_array( 'docs_anon', $existing->roles, true ) ) {
-		return $prepared_user;
+		return;
 	}
 
-	// Upgrade the existing user.
-	$update_args = array( 'ID' => $existing_id );
+	// Store form data in a transient so we don't put passwords in URLs.
+	$token = wp_generate_password( 20, false );
+	set_transient( 'docs_upgrade_' . $token, array(
+		'user_id'      => $existing->ID,
+		'display_name' => trim( ( $_POST['first_name'] ?? '' ) . ' ' . ( $_POST['last_name'] ?? '' ) ),
+		'role'         => $_POST['role'] ?? 'subscriber',
+		'user_login'   => $_POST['user_login'] ?? '',
+		'user_pass'    => $_POST['pass1'] ?? '',
+	), 300 ); // 5 minute expiry.
 
-	if ( ! empty( $prepared_user->display_name ) ) {
-		$update_args['display_name'] = $prepared_user->display_name;
-	}
-	if ( ! empty( $prepared_user->user_pass ) ) {
-		$update_args['user_pass'] = $prepared_user->user_pass;
-	}
-	if ( ! empty( $prepared_user->user_nicename ) ) {
-		$update_args['user_nicename'] = $prepared_user->user_nicename;
+	$upgrade_url = wp_nonce_url(
+		admin_url( 'admin-post.php?action=docs_upgrade_anon&token=' . $token ),
+		'docs_upgrade_anon'
+	);
+
+	$errors->remove( 'email_exists' );
+	$errors->add(
+		'email_exists',
+		sprintf(
+			__( '<strong>Note:</strong> This email is used by a document collaborator account. <a href="%s">Upgrade it</a> to a full account with the details you entered.', 'docs' ),
+			esc_url( $upgrade_url )
+		)
+	);
+} );
+
+// Handle the upgrade action.
+add_action( 'admin_post_docs_upgrade_anon', function() {
+	check_admin_referer( 'docs_upgrade_anon' );
+
+	if ( ! current_user_can( 'create_users' ) ) {
+		wp_die( __( 'You do not have permission to do this.', 'docs' ) );
 	}
 
-	$roles = $request->get_param( 'roles' );
-	if ( ! empty( $roles ) ) {
-		$update_args['role'] = $roles[0];
+	$token = isset( $_GET['token'] ) ? sanitize_text_field( $_GET['token'] ) : '';
+	$data  = get_transient( 'docs_upgrade_' . $token );
+
+	if ( ! $data || empty( $data['user_id'] ) ) {
+		wp_die( __( 'This upgrade link has expired. Please try again.', 'docs' ) );
+	}
+
+	delete_transient( 'docs_upgrade_' . $token );
+
+	$user = get_userdata( $data['user_id'] );
+	if ( ! $user || ! in_array( 'docs_anon', $user->roles, true ) ) {
+		wp_die( __( 'Invalid user.', 'docs' ) );
+	}
+
+	$update_args = array( 'ID' => $data['user_id'] );
+
+	if ( ! empty( $data['role'] ) ) {
+		$update_args['role'] = sanitize_text_field( $data['role'] );
+	}
+	if ( ! empty( $data['display_name'] ) ) {
+		$update_args['display_name'] = sanitize_text_field( $data['display_name'] );
+	}
+	if ( ! empty( $data['user_login'] ) ) {
+		$update_args['user_login'] = sanitize_user( $data['user_login'] );
+	}
+	if ( ! empty( $data['user_pass'] ) ) {
+		$update_args['user_pass'] = $data['user_pass'];
 	}
 
 	wp_update_user( $update_args );
 
-	// Set the ID to the existing user so the REST controller
-	// returns the updated user instead of trying to insert a new one.
-	$prepared_user->ID = $existing_id;
-
-	return $prepared_user;
-}, 10, 2 );
+	wp_safe_redirect( get_edit_user_link( $data['user_id'] ) );
+	exit;
+} );
 
 // Hide the "Anonymous (Docs)" role tab from the admin users list.
 add_filter( 'views_users', function( $views ) {
