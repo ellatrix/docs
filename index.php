@@ -59,12 +59,17 @@ register_deactivation_hook( __FILE__, function() {
 	wp_clear_scheduled_hook( 'docs_cleanup_anon_users' );
 } );
 
-// Delete anonymous users whose sessions have all expired.
-// Anon users can't re-authenticate, so expired sessions mean the user is unreachable.
+// Delete anonymous link users whose sessions have all expired.
+// Only cleans up users without an email (truly anonymous "anyone with the link"
+// visitors). Email-invited users are kept so they can be re-invited later.
 add_action( 'docs_cleanup_anon_users', function() {
 	$anon_users = get_users( array( 'role' => 'docs_anon' ) );
 
 	foreach ( $anon_users as $user ) {
+		if ( ! empty( $user->user_email ) ) {
+			continue;
+		}
+
 		$manager = WP_Session_Tokens::get_instance( $user->ID );
 
 		if ( empty( $manager->get_all() ) ) {

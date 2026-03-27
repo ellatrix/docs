@@ -39,7 +39,7 @@ test.describe( 'Email sharing flow', () => {
 		if ( await shareButton.getAttribute( 'aria-expanded' ) !== 'true' ) {
 			await shareButton.click();
 		}
-		const emailInput = page.getByPlaceholder( 'Add people by email or name' );
+		const emailInput = page.getByRole( 'combobox', { name: 'Add people' } );
 		await emailInput.fill( 'invited@example.com' );
 		await emailInput.press( 'Enter' );
 

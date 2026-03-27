@@ -29,7 +29,7 @@ register_post_type( 'doc', array(
 	),
 	'public' => true,
 	'show_ui' => true,
-	'supports' => array( 'title', 'editor', 'custom-fields' ),
+	'supports' => array( 'title', 'editor', 'author', 'custom-fields' ),
 	'show_in_rest' => true,
 	'rest_base' => 'docs',
 	'rewrite' => array( 'slug' => 'docs' ),

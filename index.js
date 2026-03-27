@@ -9,8 +9,7 @@
 	var SelectControl = wp.components.SelectControl;
 	var Button = wp.components.Button;
 	var Icon = wp.components.Icon;
-	var TextControl = wp.components.TextControl;
-	var Popover = wp.components.Popover;
+	var ComboboxControl = wp.components.ComboboxControl;
 	var SVG = wp.primitives.SVG;
 	var Path = wp.primitives.Path;
 	var useEffect = wp.element.useEffect;
@@ -89,47 +88,74 @@
 			var isCopied = copied[ 0 ];
 			var setCopied = copied[ 1 ];
 
-			var inputState = useState( '' );
-			var inputValue = inputState[ 0 ];
-			var setInputValue = inputState[ 1 ];
+			var filterState = useState( '' );
+			var filterValue = filterState[ 0 ];
+			var setFilterValue = filterState[ 1 ];
 
-			var suggestionsState = useState( [] );
-			var suggestions = suggestionsState[ 0 ];
-			var setSuggestions = suggestionsState[ 1 ];
+			var optionsState = useState( [] );
+			var userOptions = optionsState[ 0 ];
+			var setUserOptions = optionsState[ 1 ];
 
-			var selectedIndexState = useState( -1 );
-			var selectedIndex = selectedIndexState[ 0 ];
-			var setSelectedIndex = selectedIndexState[ 1 ];
+			// Map of email -> avatar URL, built from search results.
+			var avatarsState = useState( {} );
+			var avatars = avatarsState[ 0 ];
+			var setAvatars = avatarsState[ 1 ];
 
 			var searchTimer = useRef( null );
-			var inputRef = useRef( null );
-
-			useEffect( function () {
-				clearTimeout( searchTimer.current );
-				if ( inputValue.trim().length < 2 ) {
-					setSuggestions( [] );
-					return;
-				}
-				searchTimer.current = setTimeout( function () {
-					apiFetch( {
-						path: '/wp/v2/users?search=' + encodeURIComponent( inputValue.trim() ) + '&per_page=5&context=edit',
-					} ).then( function ( users ) {
-						setSuggestions( users );
-						setSelectedIndex( -1 );
-					} ).catch( function () { setSuggestions( [] ); } );
-				}, 300 );
-				return function () { clearTimeout( searchTimer.current ); };
-			}, [ inputValue ] );
 
 			var editPost = useDispatch( 'core/editor' ).editPost;
 
 			var selected = useSelect( function ( select ) {
 				var editor = select( 'core/editor' );
+				var post = editor.getCurrentPost();
 				return {
 					meta: editor.getEditedPostAttribute( 'meta' ),
-					link: editor.getCurrentPost().link,
+					link: post.link,
+					authorId: post.author,
 				};
 			} );
+
+			var authorId = selected.authorId;
+
+			function fetchUsers( search ) {
+				var path = '/wp/v2/users?per_page=5&context=edit';
+				if ( authorId ) {
+					path += '&exclude=' + authorId;
+				}
+				if ( search ) {
+					path += '&search=' + encodeURIComponent( search );
+				}
+				apiFetch( { path: path } ).then( function ( users ) {
+					var newAvatars = {};
+					users.forEach( function ( u ) {
+						if ( u.avatar_urls && u.avatar_urls[ '48' ] ) {
+							newAvatars[ u.email ] = u.avatar_urls[ '48' ];
+						}
+					} );
+					setAvatars( function ( prev ) {
+						return Object.assign( {}, prev, newAvatars );
+					} );
+					setUserOptions( users.map( function ( u ) {
+						return { label: u.name + ' (' + u.email + ')', value: u.email };
+					} ) );
+				} ).catch( function () { setUserOptions( [] ); } );
+			}
+
+			// Fetch users on mount and when author changes.
+			useEffect( function () { fetchUsers(); }, [ authorId ] );
+
+			// Debounced search when typing.
+			useEffect( function () {
+				clearTimeout( searchTimer.current );
+				if ( ! filterValue.trim() ) {
+					fetchUsers();
+					return;
+				}
+				searchTimer.current = setTimeout( function () {
+					fetchUsers( filterValue.trim() );
+				}, 300 );
+				return function () { clearTimeout( searchTimer.current ); };
+			}, [ filterValue, authorId ] );
 			var meta = selected.meta;
 			var link = selected.link;
 
@@ -150,10 +176,27 @@
 				if ( people.some( function ( p ) { return p.email === email; } ) ) return;
 				var updated = people.concat( { email: email, role: 'editor' } );
 				editPost( { meta: Object.assign( {}, meta, peopleToMeta( updated ) ) } );
-				setInputValue( '' );
-				setSuggestions( [] );
-				setSelectedIndex( -1 );
+				setFilterValue( '' );
+				setUserOptions( [] );
 			}
+
+			// Fetch avatars for people we don't have yet.
+			useEffect( function () {
+				people.forEach( function ( p ) {
+					if ( avatars[ p.email ] ) return;
+					apiFetch( {
+						path: '/wp/v2/users?search=' + encodeURIComponent( p.email ) + '&per_page=1&context=edit',
+					} ).then( function ( users ) {
+						if ( users.length && users[ 0 ].avatar_urls ) {
+							setAvatars( function ( prev ) {
+								var next = Object.assign( {}, prev );
+								next[ p.email ] = users[ 0 ].avatar_urls[ '48' ];
+								return next;
+							} );
+						}
+					} ).catch( function () {} );
+				} );
+			}, [ people.length ] );
 
 			function removeEmail( email ) {
 				var updated = people.filter( function ( p ) { return p.email !== email; } );
@@ -173,96 +216,6 @@
 			return el(
 				PluginDocumentSettingPanel,
 				{ name: 'docs-share', title: __( 'Share', 'docs' ), icon: linkIcon },
-
-				// Add people input with user autocomplete.
-				el( 'form', {
-					className: 'docs-share-add-person',
-					ref: inputRef,
-					onSubmit: function ( e ) {
-						e.preventDefault();
-						if ( selectedIndex >= 0 && suggestions[ selectedIndex ] ) {
-							addPerson( suggestions[ selectedIndex ].email );
-						} else {
-							addPerson( inputValue.trim() );
-						}
-					},
-				},
-					el( TextControl, {
-						placeholder: __( 'Add people by email or name', 'docs' ),
-						value: inputValue,
-						onChange: setInputValue,
-						onKeyDown: function ( e ) {
-							if ( ! suggestions.length ) return;
-							if ( e.key === 'ArrowDown' ) {
-								e.preventDefault();
-								setSelectedIndex( Math.min( selectedIndex + 1, suggestions.length - 1 ) );
-							} else if ( e.key === 'ArrowUp' ) {
-								e.preventDefault();
-								setSelectedIndex( Math.max( selectedIndex - 1, -1 ) );
-							} else if ( e.key === 'Escape' ) {
-								setSuggestions( [] );
-							}
-						},
-						hideLabelFromVision: true,
-						label: __( 'Add people', 'docs' ),
-						autoComplete: 'off',
-						__next40pxDefaultSize: true,
-						__nextHasNoMarginBottom: true,
-					} ),
-					suggestions.length > 0 && el( Popover, {
-						placement: 'bottom-start',
-						focusOnMount: false,
-						anchor: inputRef.current,
-						onClose: function () { setSuggestions( [] ); },
-						className: 'docs-share-suggestions-popover',
-					},
-						el( 'ul', { className: 'docs-share-suggestions', role: 'listbox' },
-							suggestions.map( function ( user, i ) {
-								return el( 'li', {
-									key: user.email,
-									role: 'option',
-									'aria-selected': i === selectedIndex,
-									className: 'docs-share-suggestion' + ( i === selectedIndex ? ' is-selected' : '' ),
-									onMouseDown: function ( e ) {
-										e.preventDefault();
-										addPerson( user.email );
-									},
-								},
-									el( 'div', { className: 'docs-share-suggestion-name' }, user.name ),
-									el( 'div', { className: 'docs-share-suggestion-email' }, user.email )
-								);
-							} )
-						)
-					)
-				),
-
-				// People with access.
-				people.length > 0 && el( 'div', { className: 'docs-share-people' },
-					people.map( function ( person ) {
-						return el( 'div', { className: 'docs-share-person-row', key: person.email },
-							el( 'div', { className: 'docs-share-person-avatar' },
-								person.email.charAt( 0 ).toUpperCase()
-							),
-							el( 'div', { className: 'docs-share-person-email' }, person.email ),
-							el( SelectControl, {
-								value: person.role,
-								options: PERSON_ROLE_OPTIONS,
-								onChange: function ( value ) {
-									if ( value === 'remove' ) {
-										removeEmail( person.email );
-									} else {
-										updatePersonRole( person.email, value );
-									}
-								},
-								hideLabelFromVision: true,
-								label: __( 'Role', 'docs' ),
-								__next40pxDefaultSize: true,
-								__nextHasNoMarginBottom: true,
-								className: 'docs-share-person-role',
-							} )
-						);
-					} )
-				),
 
 				// General access row.
 				el( 'div', { className: 'docs-share-access-row' },
@@ -287,6 +240,67 @@
 							__nextHasNoMarginBottom: true,
 						} )
 					)
+				),
+
+				// People with access.
+				people.length > 0 && el( 'div', { className: 'docs-share-people' },
+					people.map( function ( person ) {
+						return el( 'div', { className: 'docs-share-person-row', key: person.email },
+							el( 'div', { className: 'docs-share-person-avatar' },
+								avatars[ person.email ]
+									? el( 'img', {
+										src: avatars[ person.email ],
+										alt: '',
+										className: 'docs-share-person-avatar-img',
+									} )
+									: person.email.charAt( 0 ).toUpperCase()
+							),
+							el( 'div', { className: 'docs-share-person-email' }, person.email ),
+							el( SelectControl, {
+								value: person.role,
+								options: PERSON_ROLE_OPTIONS,
+								onChange: function ( value ) {
+									if ( value === 'remove' ) {
+										removeEmail( person.email );
+									} else {
+										updatePersonRole( person.email, value );
+									}
+								},
+								hideLabelFromVision: true,
+								label: __( 'Role', 'docs' ),
+								__next40pxDefaultSize: true,
+								__nextHasNoMarginBottom: true,
+								className: 'docs-share-person-role',
+							} )
+						);
+					} )
+				),
+
+				// Add people input with user autocomplete.
+				el( 'div', {
+					className: 'docs-share-add-person',
+					onKeyDown: function ( e ) {
+						if ( e.key === 'Enter' && filterValue.trim() && filterValue.includes( '@' ) ) {
+							e.preventDefault();
+							addPerson( filterValue.trim() );
+						}
+					},
+				},
+					el( ComboboxControl, {
+						label: __( 'Add people', 'docs' ),
+						hideLabelFromVision: true,
+						placeholder: __( 'Add people by email or name', 'docs' ),
+						value: null,
+						options: userOptions,
+						onChange: function ( email ) {
+							if ( email ) {
+								addPerson( email );
+							}
+						},
+						onFilterValueChange: setFilterValue,
+						__next40pxDefaultSize: true,
+						__nextHasNoMarginBottom: true,
+					} )
 				),
 
 				// Copy link button.
