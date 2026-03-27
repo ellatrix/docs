@@ -4,7 +4,7 @@
  * Plugin Name: Docs
  * Plugin URI: https://wordpress.org/plugins/docs/
  * Description: Create and share documents with WordPress!
- * Version: 0.0.1
+ * Version: 0.0.2
  * Author: Ella van Durpe
  * Author URI: https://ellavandurpe.com
  * License: GPLv2 or later

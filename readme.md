@@ -1,41 +1,61 @@
 # Docs
 
     Contributors:      ellatrix, wordpressdotorg
-    Tags:              docs, documents, pages
-    Requires at least: 5.3
-    Tested up to:      5.3
-    Stable tag:        0.0.1
+    Tags:              docs, documents, collaboration
+    Requires at least: 7.0
+    Tested up to:      7.0
+    Stable tag:        0.0.2
     License:           GPL-2.0+
 
 Create and share documents with WordPress!
 
 ## Description
 
-This plugins allows you to create documents with WordPress, and to share them with others so they can also read and edit. Just share the unique link, and anyone with that link will be able to read and edit the document. Alternatively, you can restrict access with a list of email addresses.
+This plugin allows you to create documents with WordPress, and to share them with others so they can also read and edit. Share the unique link to let anyone edit, or restrict access to specific email addresses.
 
-At the moment this plugin is very simple. The normal post locking system is used, so no collaborative editing yet!
+With WordPress 7.0, Docs supports **real-time collaborative editing** — multiple users can edit the same document simultaneously, seeing each other's cursors and changes live.
 
-### Security
+### Sharing
 
-Anyone with the link to the document will be able to edit the document, so be careful to whom you send the link!
+The share panel (in the document sidebar) lets you control access:
 
-### Future
+* **Anyone with the link** — anonymous users get a randomly generated animal name and emoji avatar (e.g. "Anonymous Fox").
+* **Specific people** — invite collaborators by email. They receive a magic link to access the editor without needing a WordPress account.
+* **Restricted** — only the document author and invited people can access.
 
-* Allow posts and pages to be shared in the same way.
-* There will be option to fine tune permissions. You'll be able to choose if
-  - anyone with the link can read,
-  - anyone with the link can edit,
-  - certain email addresses can read, or
-  - certain email addresses can edit.
-* As part of the Gutenberg project, we'll look into collaborative editing.
-  - At first improve post locking, so others can still view the document, but
-    not edit. (Read only.)
-  - Read only, but live updated.
-  - Lock on a block level, let anyone edit the rest.
-  - Maybe full collaborative editing.
+### Anonymous users
+
+Anonymous collaborators are assigned a random animal identity (name + emoji avatar) so they're distinguishable during collaboration. They are automatically cleaned up when their sessions expire.
+
+## Development
+
+Requires [Docker](https://www.docker.com/) and [Node.js](https://nodejs.org/).
+
+```bash
+npm install
+npx wp-env start
+```
+
+The dev site runs at http://localhost:2025 (admin/password).
+
+### E2E tests
+
+```bash
+npm run test:e2e
+```
 
 ## Changelog
 
-### 0.0.0
+### 0.0.2
+
+* Real-time collaborative editing with WordPress 7.0.
+* Google Docs-style share panel with per-person and general access controls.
+* Anonymous users get random animal names and emoji avatars.
+* Magic link email invitations for sharing with specific people.
+* Daily cleanup of expired anonymous user sessions.
+* Security: nonce verification, input sanitization, tightened capabilities.
+* E2E test suite with Playwright.
+
+### 0.0.1
 
 * Initial version.
