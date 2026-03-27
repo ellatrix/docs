@@ -1,0 +1,41 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Start WordPress
+        run: npx wp-env start
+
+      - name: Activate plugin on test site
+        run: npx wp-env run tests-cli -- wp plugin deactivate docs && npx wp-env run tests-cli -- wp plugin activate docs
+
+      - name: Run e2e tests
+        run: npm run test:e2e
+
+      - name: Upload artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: artifacts/
