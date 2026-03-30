@@ -774,24 +774,6 @@ add_action( 'pre_get_posts', function( $query ) {
 	}
 } );
 
-// Allow doc-capable users to read global styles. The block editor fetches the
-// wp_global_styles entity client-side to resolve theme features (e.g. padding-aware
-// alignments). read_post for this CPT maps to edit_posts via map_meta_cap, which
-// doc-only users don't have.
-add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $args ) {
-	if ( $args[0] !== 'read_post' || ! isset( $args[2] ) ) {
-		return $user_caps;
-	}
-
-	$post = get_post( $args[2] );
-
-	if ( $post && $post->post_type === 'wp_global_styles' && ! empty( $user_caps['edit_docs'] ) ) {
-		$user_caps['edit_posts'] = true;
-	}
-
-	return $user_caps;
-}, 10, 3 );
-
 // Grant or deny doc editing capabilities based on sharing settings.
 // Users who don't already have edit_others_docs (subscribers, anon) get it
 // dynamically when the doc is shared with them. Users who do have it get it
