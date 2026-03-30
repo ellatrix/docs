@@ -498,6 +498,14 @@ add_filter( 'views_users', function( $views ) {
 	return $views;
 } );
 
+// Remove the template selector from the doc editor.
+add_filter( 'block_editor_settings_all', function( $settings, $context ) {
+	if ( isset( $context->post ) && $context->post->post_type === 'doc' ) {
+		$settings['supportsTemplateMode'] = false;
+	}
+	return $settings;
+}, 10, 2 );
+
 add_action( 'enqueue_block_editor_assets', function() {
 	if ( get_post_type() !== 'doc' ) {
 		return;

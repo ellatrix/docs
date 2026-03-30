@@ -32,7 +32,7 @@ test.describe( 'Anonymous link sharing flow', () => {
 		if ( await shareButton.getAttribute( 'aria-expanded' ) !== 'true' ) {
 			await shareButton.click();
 		}
-		await page.getByRole( 'combobox', { name: 'General access' } ).selectOption( 'anyone' );
+		await page.getByLabel( 'Anyone with the link can edit' ).click();
 
 		// 4. Save.
 		await editor.saveDraft();
