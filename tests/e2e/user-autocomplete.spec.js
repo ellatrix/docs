@@ -40,9 +40,9 @@ test.describe( 'User autocomplete in share panel', () => {
 		}
 
 		const input = page.getByRole( 'combobox', { name: 'Add people' } );
-		await input.focus();
+		await input.fill( 'jane' );
 
-		// Should show recent users, including our test user.
+		// Should find Jane Doe in search results.
 		await expect( page.getByRole( 'option', { name: /Jane Doe/ } ) ).toBeVisible();
 	} );
 
