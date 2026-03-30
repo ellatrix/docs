@@ -108,12 +108,21 @@ function docs__prime_anon_cache( $data ) {
 
 // Prime the user cache as early as possible so wp_validate_auth_cookie()
 // (called by auth_redirect in wp-admin) can find our fake user.
+// If the WP auth cookie is missing or invalid, clear the docs_anon cookie
+// so the user gets a fresh identity on the next visit.
 add_action( 'plugins_loaded', function() {
 	$data = docs__get_anon_cookie();
 	if ( ! $data ) {
 		return;
 	}
 	docs__prime_anon_cache( $data );
+
+	// Check if the WP auth cookie exists. If not, the docs_anon cookie is
+	// stale (e.g. WP cookie expired or was never set). Clear it.
+	if ( empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+		setcookie( 'docs_anon', '', time() - DAY_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN );
+		unset( $_COOKIE['docs_anon'] );
+	}
 }, 0 );
 
 // Also prime on determine_current_user in case plugins_loaded was too late.
@@ -149,20 +158,41 @@ add_filter( 'get_user_metadata', function( $value, $object_id, $meta_key, $singl
 	if ( ! $data || $object_id !== (int) $data['id'] ) {
 		return $value;
 	}
+	// The get_user_metadata filter must return array( $value ) for handled keys.
+	// WordPress does $check[0] when $single is true.
 	if ( $meta_key === 'animal' ) {
-		return $single ? $data['animal'] : array( $data['animal'] );
+		return array( $data['animal'] );
 	}
-	// Return default admin color.
 	if ( $meta_key === 'admin_color' ) {
-		return $single ? 'coffee' : array( 'coffee' );
+		return array( 'coffee' );
 	}
 	// Enable the visual/rich editor (without this, user_can_richedit() returns
 	// false and the block editor falls back to the code editor).
 	if ( $meta_key === 'rich_editing' ) {
-		return $single ? 'true' : array( 'true' );
+		return array( 'true' );
 	}
 	return $value;
 }, 10, 4 );
+
+// Return the current blog for fake users so the admin bar works.
+add_filter( 'pre_get_blogs_of_user', function( $sites, $user_id ) {
+	$data = docs__get_anon_cookie();
+	if ( ! $data || (int) $data['id'] !== $user_id ) {
+		return $sites;
+	}
+	$site_id = get_current_blog_id();
+	$site = new stdClass();
+	$site->userblog_id = $site_id;
+	$site->blogname    = get_option( 'blogname' );
+	$site->domain      = '';
+	$site->path        = '';
+	$site->site_id     = 1;
+	$site->siteurl     = get_option( 'siteurl' );
+	$site->archived    = 0;
+	$site->spam        = 0;
+	$site->deleted     = 0;
+	return array( $site_id => $site );
+}, 10, 2 );
 
 // Fake session token manager for anonymous users. wp_validate_auth_cookie()
 // verifies the session token from the auth cookie. Our fake users use a fixed
