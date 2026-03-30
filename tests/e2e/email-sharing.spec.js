@@ -4,9 +4,10 @@ const BASE_URL = process.env.WP_BASE_URL || 'http://localhost:2026';
 
 async function getLastEmail( page ) {
 	const response = await page.request.get(
-		'/index.php?rest_route=/docs-test/v1/last-email'
+		'/index.php?rest_route=/docs-test/v1/emails'
 	);
-	return response.json();
+	const emails = await response.json();
+	return emails[ emails.length - 1 ];
 }
 
 async function dismissWelcomeModal( page ) {

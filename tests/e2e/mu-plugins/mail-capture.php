@@ -19,26 +19,6 @@ add_filter( 'pre_wp_mail', function( $null, $atts ) {
 }, 10, 2 );
 
 add_action( 'rest_api_init', function() {
-	register_rest_route( 'docs-test/v1', '/last-email', array(
-		'methods'             => 'GET',
-		'callback'            => function() {
-			$emails = get_transient( 'docs_captured_emails' ) ?: array();
-			delete_transient( 'docs_captured_emails' );
-
-			if ( empty( $emails ) ) {
-				return new WP_Error(
-					'no_email',
-					'No email captured',
-					array( 'status' => 404 )
-				);
-			}
-
-			// Return last email for backwards compatibility.
-			return end( $emails );
-		},
-		'permission_callback' => '__return_true',
-	) );
-
 	register_rest_route( 'docs-test/v1', '/emails', array(
 		'methods'             => 'GET',
 		'callback'            => function() {
