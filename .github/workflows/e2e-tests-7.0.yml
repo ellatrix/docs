@@ -1,4 +1,4 @@
-name: E2E Tests (WP 6.9 + Gutenberg)
+name: E2E Tests (WP 7.0)
 
 on:
   push:
@@ -25,10 +25,15 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Start WordPress
-        run: npx wp-env start
+        run: |
+          cp .wp-env.7.0.json .wp-env.json
+          npx wp-env start
 
       - name: Activate plugin on test site
         run: npx wp-env run tests-cli -- wp plugin deactivate docs && npx wp-env run tests-cli -- wp plugin activate docs
+
+      - name: Deactivate Gutenberg
+        run: npx wp-env run tests-cli -- wp plugin deactivate gutenberg
 
       - name: Run e2e tests
         run: npm run test:e2e
@@ -37,5 +42,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-artifacts
+          name: e2e-artifacts-7.0
           path: artifacts/
