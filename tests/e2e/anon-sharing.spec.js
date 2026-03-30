@@ -63,8 +63,29 @@ test.describe( 'Anonymous link sharing flow', () => {
 				wp.data.select( 'core' ).getCurrentUser()?.name
 			);
 			expect( userName ).toMatch( /^Anonymous \w+$/ );
+
+			// 10. Type content and save as the anonymous user.
+			const canvas = anonPage.frameLocator( 'iframe[name="editor-canvas"]' );
+			await canvas.locator( '[data-type="core/paragraph"], .block-editor-default-block-appender' )
+				.first().click();
+			await anonPage.keyboard.type( 'Hello from anon' );
+			await anonPage.getByRole( 'button', { name: 'Save draft' } ).click();
+			await expect(
+				anonPage.getByRole( 'button', { name: 'Dismiss this notice' } )
+					.filter( { hasText: 'Draft saved' } )
+			).toBeVisible();
 		} finally {
 			await anonContext.close();
 		}
+
+		// 11. Verify the content was saved.
+		const savedDoc = await requestUtils.rest( {
+			path: '/wp/v2/docs/' + doc.id,
+			params: { context: 'edit' },
+		} );
+		expect( savedDoc.content.raw ).toContain( 'Hello from anon' );
+
+		// 12. Check that the original author is preserved.
+		expect( savedDoc.author ).toBe( 1 );
 	} );
 } );

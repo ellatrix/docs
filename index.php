@@ -156,6 +156,11 @@ add_filter( 'get_user_metadata', function( $value, $object_id, $meta_key, $singl
 	if ( $meta_key === 'admin_color' ) {
 		return $single ? 'coffee' : array( 'coffee' );
 	}
+	// Enable the visual/rich editor (without this, user_can_richedit() returns
+	// false and the block editor falls back to the code editor).
+	if ( $meta_key === 'rich_editing' ) {
+		return $single ? 'true' : array( 'true' );
+	}
 	return $value;
 }, 10, 4 );
 
