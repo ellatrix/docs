@@ -35,13 +35,19 @@ All collaborators — anonymous link visitors, email-invited people, and existin
 * **Email-invited people** get a `docs_anon` user with their email address. They receive a magic link (password reset key) to log in. These users persist so they can be re-invited to other docs. If a real WP account is later created with the same email, the `docs_anon` account is automatically upgraded.
 * **Existing WP users** are added directly by user ID from the autocomplete.
 
-Sharing permissions are stored as post meta (`docs-share-edit`, `docs-share-view`, `docs-share-comment`) with one meta row per user ID (`single: false, type: integer`). A `user_has_cap` filter grants or denies doc editing capabilities dynamically based on these meta values. Invitation emails are sent via an `added_post_meta` hook — WordPress diffs multi-value meta on save, so emails are only sent for newly added users.
+Shared user IDs are stored in `docs-share-edit` post meta (one row per user, `single: false, type: integer`). A `user_has_cap` filter grants doc editing capabilities dynamically based on this meta. Invitation emails are sent via an `added_post_meta` hook — WordPress diffs multi-value meta on save, so emails are only sent for newly added users.
 
 The `docs_anon` role is hidden from the admin users list and user search queries via a `pre_get_users` filter. To list these users with WP-CLI, pass the role explicitly:
 
 ```bash
 wp user list --role=docs_anon
 ```
+
+## Future development
+
+* **View-only and comment-only sharing** — `docs-share-view` and `docs-share-comment` meta keys. Blocked by WordPress core requiring `edit_posts` for the comments REST API, which prevents granting limited access without also granting full editing.
+* **"Shared with me" view** — list docs shared with the current user by querying `docs-share-edit` meta.
+* **Uninstall cleanup** — remove roles, meta, cron schedules, and anonymous users on plugin uninstall.
 
 ## Development
 

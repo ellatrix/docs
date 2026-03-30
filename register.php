@@ -42,15 +42,11 @@ register_post_type( 'doc', array(
 	'menu_icon' => 'dashicons-media-document',
 ) );
 
-$share_meta_args = array(
+register_post_meta( 'doc', 'docs-share-edit', array(
 	'type'         => 'integer',
 	'single'       => false,
 	'show_in_rest' => true,
-);
-
-register_post_meta( 'doc', 'docs-share-edit', $share_meta_args );
-register_post_meta( 'doc', 'docs-share-view', $share_meta_args );
-register_post_meta( 'doc', 'docs-share-comment', $share_meta_args );
+) );
 
 register_post_meta( 'doc', 'docs-share-anyone', array(
 	'show_in_rest' => true,

@@ -212,11 +212,7 @@ add_action( 'template_redirect', function() {
 			}
 
 			// Check if there are people with email access.
-			$shared_user_ids = array_merge(
-				get_post_meta( $post->ID, 'docs-share-edit', false ),
-				get_post_meta( $post->ID, 'docs-share-view', false ),
-				get_post_meta( $post->ID, 'docs-share-comment', false )
-			);
+			$shared_user_ids = get_post_meta( $post->ID, 'docs-share-edit', false );
 
 			if ( empty( $shared_user_ids ) ) {
 				exit;
@@ -251,11 +247,7 @@ add_action( 'template_redirect', function() {
 			}
 
 			$user = get_user_by( 'email', $email_address );
-			$shared_ids = array_map( 'intval', array_merge(
-				get_post_meta( $post->ID, 'docs-share-edit', false ),
-				get_post_meta( $post->ID, 'docs-share-view', false ),
-				get_post_meta( $post->ID, 'docs-share-comment', false )
-			) );
+			$shared_ids = array_map( 'intval', get_post_meta( $post->ID, 'docs-share-edit', false ) );
 
 			if ( ! $user || ! in_array( $user->ID, $shared_ids, true ) ) {
 				$doc_errors->add( 'empty_username', __( '<strong>Error</strong>: You do not have access to this document.', 'docs' ) );
@@ -540,9 +532,7 @@ add_action( 'enqueue_block_editor_assets', function() {
 // The REST API diffs multi-value meta and only calls add_metadata() for
 // genuinely new values, so this hook fires once per newly added user.
 add_action( 'added_post_meta', function( $meta_id, $post_id, $meta_key, $meta_value ) {
-	$share_keys = array( 'docs-share-edit', 'docs-share-view', 'docs-share-comment' );
-
-	if ( ! in_array( $meta_key, $share_keys, true ) ) {
+	if ( $meta_key !== 'docs-share-edit' ) {
 		return;
 	}
 
@@ -673,12 +663,8 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 		return $user_caps;
 	}
 
-	// Check if user ID is in any of the sharing lists.
-	$all_shared_ids = array_map( 'intval', array_merge(
-		get_post_meta( $post->ID, 'docs-share-edit', false ),
-		get_post_meta( $post->ID, 'docs-share-view', false ),
-		get_post_meta( $post->ID, 'docs-share-comment', false )
-	) );
+	// Check if user ID is in the sharing list.
+	$all_shared_ids = array_map( 'intval', get_post_meta( $post->ID, 'docs-share-edit', false ) );
 
 	if ( in_array( $user_id, $all_shared_ids, true ) ) {
 		$user_caps['edit_docs']           = true;

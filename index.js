@@ -22,23 +22,14 @@
 	);
 
 	var ANYONE_KEY = 'docs-share-anyone';
-	var META_KEYS = {
-		editor: 'docs-share-edit',
-		viewer: 'docs-share-view',
-		commenter: 'docs-share-comment',
-	};
+	var META_KEY = 'docs-share-edit';
 
 
 
-	// Build a unified list of { id, role } from meta.
 	function getPeople( meta ) {
-		var people = [];
-		Object.keys( META_KEYS ).forEach( function ( role ) {
-			( meta[ META_KEYS[ role ] ] || [] ).forEach( function ( userId ) {
-				people.push( { id: userId, role: role } );
-			} );
+		return ( meta[ META_KEY ] || [] ).map( function ( userId ) {
+			return { id: userId };
 		} );
-		return people;
 	}
 
 	function SharePanel() {
@@ -121,15 +112,14 @@
 				}, 2000 );
 			} );
 
-			function addUserIdToMeta( userId, role ) {
+			function addUserIdToMeta( userId ) {
 				// Read fresh meta and dispatch directly to avoid stale closures
 				// (e.g. when called from an async .then() after a save).
 				var freshMeta = wp.data.select( 'core/editor' ).getEditedPostAttribute( 'meta' );
-				var key = META_KEYS[ role ];
-				var current = freshMeta[ key ] || [];
+				var current = freshMeta[ META_KEY ] || [];
 				if ( current.indexOf( userId ) !== -1 ) return;
 				var updated = {};
-				updated[ key ] = current.concat( userId );
+				updated[ META_KEY ] = current.concat( userId );
 				wp.data.dispatch( 'core/editor' ).editPost( { meta: Object.assign( {}, freshMeta, updated ) } );
 				setFilterValue( '' );
 				setUserOptions( [] );
@@ -137,25 +127,23 @@
 
 		function addPerson( emailOrUserId ) {
 				if ( typeof emailOrUserId === 'number' ) {
-					addUserIdToMeta( emailOrUserId, 'editor' );
+					addUserIdToMeta( emailOrUserId );
 				} else if ( typeof emailOrUserId === 'string' && emailOrUserId.includes( '@' ) ) {
 					apiFetch( {
 						path: '/docs/v1/get-or-create-user',
 						method: 'POST',
 						data: { email: emailOrUserId },
 					} ).then( function ( user ) {
-						addUserIdToMeta( user.id, 'editor' );
+						addUserIdToMeta( user.id );
 					} );
 				}
 			}
 
 			function removePerson( userId ) {
+				var current = meta[ META_KEY ] || [];
 				var updated = {};
-				Object.keys( META_KEYS ).forEach( function ( role ) {
-					var current = meta[ META_KEYS[ role ] ] || [];
-					updated[ META_KEYS[ role ] ] = current.filter( function ( id ) {
-						return id !== userId;
-					} );
+				updated[ META_KEY ] = current.filter( function ( id ) {
+					return id !== userId;
 				} );
 				editPost( { meta: Object.assign( {}, meta, updated ) } );
 			}
