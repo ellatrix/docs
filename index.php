@@ -654,21 +654,27 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 
 	$anyone = get_post_meta( $post->ID, 'docs-share-anyone', true );
 
+	$grant = false;
+
 	// "Anyone with the link" — grant editing caps.
 	if ( in_array( $anyone, array( 'anyone', 'anyone-view', 'anyone-comment' ), true ) ) {
-		$user_caps['edit_docs']           = true;
-		$user_caps['edit_others_docs']    = true;
-		$user_caps['edit_published_docs'] = true;
-		return $user_caps;
+		$grant = true;
 	}
 
 	// Check if user ID is in the sharing list.
-	$all_shared_ids = array_map( 'intval', get_post_meta( $post->ID, 'docs-share-edit', false ) );
+	if ( ! $grant ) {
+		$all_shared_ids = array_map( 'intval', get_post_meta( $post->ID, 'docs-share-edit', false ) );
+		$grant = in_array( $user_id, $all_shared_ids, true );
+	}
 
-	if ( in_array( $user_id, $all_shared_ids, true ) ) {
+	if ( $grant ) {
 		$user_caps['edit_docs']           = true;
 		$user_caps['edit_others_docs']    = true;
 		$user_caps['edit_published_docs'] = true;
+		// Allow file uploads for real users (not anonymous fake users).
+		if ( $user_id !== PHP_INT_MAX ) {
+			$user_caps['upload_files'] = true;
+		}
 		return $user_caps;
 	}
 
