@@ -1,6 +1,7 @@
 {
-	"core": "WordPress/WordPress#master",
+	"core": "WordPress/WordPress#6.9-branch",
 	"plugins": [
+		"https://downloads.wordpress.org/plugin/gutenberg.zip",
 		"."
 	],
 	"config": {

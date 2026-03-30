@@ -5,6 +5,8 @@
  * Plugin URI: https://wordpress.org/plugins/docs/
  * Description: Create and share documents with WordPress!
  * Version: 0.0.2
+ * Requires at least: 6.9
+ * Requires Plugins: gutenberg
  * Author: Ella van Durpe
  * Author URI: https://ellavandurpe.com
  * License: GPLv2 or later
@@ -38,7 +40,7 @@ register_activation_hook( __FILE__, function() {
 	$role->add_cap( 'edit_docs' );
 
 	// docs_anon: minimal caps. edit_docs is needed as a generic capability
-	// check (e.g. WP 7.0 collab sync endpoint). Per-doc access is still
+	// check (e.g. collab sync endpoint). Per-doc access is still
 	// controlled by the user_has_cap filter based on sharing settings.
 	$role = get_role( 'docs_anon' );
 
@@ -589,11 +591,11 @@ add_action( 'rest_api_init', function() {
 	) );
 } );
 
-// Replace the core sync server with our subclass that supports doc capabilities.
-// Register before core (priority 99) so our handler is tried first by the REST
-// server. Core's handler remains as a fallback but is never reached.
+// Replace the sync server with our subclass that supports doc capabilities.
+// Register before Gutenberg/core (priority 9) so our handler is tried first
+// by the REST server. Their handler remains as a fallback but is never reached.
 add_action( 'rest_api_init', function() {
-	if ( ! class_exists( 'WP_HTTP_Polling_Sync_Server' ) || ! wp_is_collaboration_enabled() ) {
+	if ( ! class_exists( 'WP_HTTP_Polling_Sync_Server' ) ) {
 		return;
 	}
 
@@ -601,7 +603,7 @@ add_action( 'rest_api_init', function() {
 
 	$sync_server = new Docs_HTTP_Polling_Sync_Server_Custom_Caps( new WP_Sync_Post_Meta_Storage() );
 	$sync_server->register_routes();
-}, 98 );
+}, 9 );
 
 add_action( 'pre_get_posts', function( $query ) {
 	if ( is_admin() || ! $query->query || ! isset( $query->query[ 'post_type' ] ) ) {

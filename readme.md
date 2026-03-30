@@ -2,8 +2,9 @@
 
     Contributors:      ellatrix, wordpressdotorg
     Tags:              docs, documents, collaboration
-    Requires at least: 7.0
-    Tested up to:      7.0
+    Requires at least: 6.9
+    Tested up to:      6.9
+    Requires Plugins:  gutenberg
     Stable tag:        0.0.2
     License:           GPL-2.0+
 
@@ -13,7 +14,7 @@ Create and share documents with WordPress!
 
 This plugin allows you to create documents with WordPress, and to share them with others so they can also read and edit. Share the unique link to let anyone edit, or restrict access to specific email addresses.
 
-With WordPress 7.0, Docs supports **real-time collaborative editing** — multiple users can edit the same document simultaneously, seeing each other's cursors and changes live.
+With the Gutenberg plugin, Docs supports **real-time collaborative editing** — multiple users can edit the same document simultaneously, seeing each other's cursors and changes live.
 
 ### Sharing
 
@@ -66,7 +67,7 @@ npm run test:e2e
 
 ### 0.0.2
 
-* Real-time collaborative editing with WordPress 7.0.
+* Real-time collaborative editing (requires Gutenberg plugin).
 * Google Docs-style share panel with per-person and general access controls.
 * Anonymous users get random animal names and emoji avatars.
 * Magic link email invitations for sharing with specific people.

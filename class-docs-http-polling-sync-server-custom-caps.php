@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Extends the WP 7.0 collaborative editing sync server to support
+ * Extends the collaborative editing sync server to support
  * custom post type capabilities.
  *
  * The core check_permissions() method has a hardcoded edit_posts gate
