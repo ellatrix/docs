@@ -52,33 +52,142 @@ register_activation_hook( __FILE__, function() {
 	require 'register.php';
 	flush_rewrite_rules();
 
-	if ( ! wp_next_scheduled( 'docs_cleanup_anon_users' ) ) {
-		wp_schedule_event( time(), 'daily', 'docs_cleanup_anon_users' );
+} );
+
+// Fake user system for anonymous "anyone with the link" visitors.
+// Instead of creating real WP users, we store identity in a cookie and
+// intercept WordPress user lookups to return a synthetic WP_User object.
+
+$GLOBALS['docs_anon_animals'] = array(
+	'1f436' => 'Dog',    '1f431' => 'Cat',     '1f42d' => 'Mouse',
+	'1f439' => 'Hamster', '1f430' => 'Rabbit',  '1f98a' => 'Fox',
+	'1f43b' => 'Bear',   '1f43c' => 'Panda',   '1f428' => 'Koala',
+	'1f42f' => 'Tiger',  '1f981' => 'Lion',     '1f435' => 'Monkey',
+);
+
+function docs__get_anon_cookie() {
+	if ( empty( $_COOKIE['docs_anon'] ) ) {
+		return null;
 	}
-} );
-
-register_deactivation_hook( __FILE__, function() {
-	wp_clear_scheduled_hook( 'docs_cleanup_anon_users' );
-} );
-
-// Delete anonymous link users whose sessions have all expired.
-// Only cleans up users without an email (truly anonymous "anyone with the link"
-// visitors). Email-invited users are kept so they can be re-invited later.
-add_action( 'docs_cleanup_anon_users', function() {
-	$anon_users = get_users( array( 'role' => 'docs_anon' ) );
-
-	foreach ( $anon_users as $user ) {
-		if ( ! empty( $user->user_email ) ) {
-			continue;
-		}
-
-		$manager = WP_Session_Tokens::get_instance( $user->ID );
-
-		if ( empty( $manager->get_all() ) ) {
-			wp_delete_user( $user->ID );
-		}
+	$data = json_decode( wp_unslash( $_COOKIE['docs_anon'] ), true );
+	if ( ! is_array( $data ) || empty( $data['id'] ) || empty( $data['animal'] ) || empty( $data['name'] ) ) {
+		return null;
 	}
+	return $data;
+}
+
+function docs__make_fake_user( $data ) {
+	$user = new WP_User();
+	$user->ID = (int) $data['id'];
+	$user->user_login = 'docs_anon_' . $data['id'];
+	$user->user_nicename = 'docs_anon_' . $data['id'];
+	$user->display_name = $data['name'];
+	$user->user_email = '';
+	$user->caps = array( 'docs_anon' => true );
+	$user->allcaps = array( 'docs_anon' => true, 'edit_docs' => true, 'read' => true );
+	$user->roles = array( 'docs_anon' );
+	return $user;
+}
+
+// Prime the user cache with our fake user so WP_User never hits the DB.
+function docs__prime_anon_cache( $data ) {
+	$obj = new stdClass();
+	$obj->ID = (int) $data['id'];
+	$obj->user_login = 'docs_anon_' . $data['id'];
+	$obj->user_nicename = 'docs_anon_' . $data['id'];
+	$obj->user_email = '';
+	$obj->user_url = '';
+	$obj->user_pass = 'fake';
+	$obj->user_registered = '2020-01-01 00:00:00';
+	$obj->user_activation_key = '';
+	$obj->user_status = 0;
+	$obj->display_name = $data['name'];
+	wp_cache_set( $obj->ID, $obj, 'users' );
+	wp_cache_set( $obj->user_login, $obj->ID, 'userlogins' );
+}
+
+// Prime the user cache as early as possible so wp_validate_auth_cookie()
+// (called by auth_redirect in wp-admin) can find our fake user.
+add_action( 'plugins_loaded', function() {
+	$data = docs__get_anon_cookie();
+	if ( ! $data ) {
+		return;
+	}
+	docs__prime_anon_cache( $data );
+}, 0 );
+
+// Also prime on determine_current_user in case plugins_loaded was too late.
+add_filter( 'determine_current_user', function( $user_id ) {
+	static $resolving = false;
+	if ( $user_id || $resolving ) {
+		return $user_id;
+	}
+	$data = docs__get_anon_cookie();
+	if ( ! $data ) {
+		return $user_id;
+	}
+	$resolving = true;
+	docs__prime_anon_cache( $data );
+	$resolving = false;
+	return (int) $data['id'];
+}, 30 );
+
+// Grant capabilities for the fake user.
+add_filter( 'user_has_cap', function( $allcaps, $caps, $args ) {
+	$data = docs__get_anon_cookie();
+	if ( ! $data || $args[1] !== (int) $data['id'] ) {
+		return $allcaps;
+	}
+	$allcaps['read'] = true;
+	$allcaps['edit_docs'] = true;
+	return $allcaps;
+}, 5, 3 );
+
+// Return the animal avatar for the fake user.
+add_filter( 'get_user_metadata', function( $value, $object_id, $meta_key, $single ) {
+	$data = docs__get_anon_cookie();
+	if ( ! $data || $object_id !== (int) $data['id'] ) {
+		return $value;
+	}
+	if ( $meta_key === 'animal' ) {
+		return $single ? $data['animal'] : array( $data['animal'] );
+	}
+	// Return default admin color.
+	if ( $meta_key === 'admin_color' ) {
+		return $single ? 'coffee' : array( 'coffee' );
+	}
+	return $value;
+}, 10, 4 );
+
+// Fake session token manager for anonymous users. wp_validate_auth_cookie()
+// verifies the session token from the auth cookie. Our fake users use a fixed
+// token stored in the docs_anon cookie. This manager accepts that token.
+class Docs_Anon_Session_Tokens extends WP_Session_Tokens {
+	protected function get_sessions() { return array(); }
+	protected function get_session( $verifier ) {
+		// Return a session that never expires so verify() accepts the token.
+		return array( 'expiration' => time() + DAY_IN_SECONDS );
+	}
+	protected function update_session( $verifier, $session = null ) {}
+	protected function destroy_other_sessions( $verifier ) {}
+	protected function destroy_all_sessions() {}
+}
+
+// Use the fake session token manager for anon users.
+add_filter( 'session_token_manager', function( $manager ) {
+	// Only check the cookie — never call get_current_user_id() here
+	// because this filter fires during wp_validate_auth_cookie which
+	// itself is called during determine_current_user.
+	if ( docs__get_anon_cookie() ) {
+		return 'Docs_Anon_Session_Tokens';
+	}
+	return $manager;
 } );
+
+// The REST API checks cookie nonces. For fake users, the nonce is generated
+// using the session token from the auth cookie — which is our fixed token.
+// This works automatically since wp_get_session_token() reads the auth cookie
+// and our session manager accepts it.
 
 function docs__get_or_create_user_by_email( $email_address ) {
 	$user = get_user_by( 'email', $email_address );
@@ -89,7 +198,7 @@ function docs__get_or_create_user_by_email( $email_address ) {
 
 	return get_user_by( 'id', wp_insert_user( array(
 		'user_pass' => wp_generate_password(),
-		'user_login' => wp_generate_password(),
+		'user_login' => 'docs_anon_' . wp_generate_password(),
 		'display_name' => $email_address,
 		'user_email' => $email_address,
 		'role' => 'docs_anon',
@@ -179,36 +288,44 @@ add_action( 'template_redirect', function() {
 
 			// "anyone with the link" — any of the link-sharing values.
 			if ( in_array( $anyone, array( 'anyone', 'anyone-view', 'anyone-comment' ), true ) ) {
-				$animals = array(
-					'1f436' => __( 'Dog', 'docs' ),
-					'1f431' => __( 'Cat', 'docs' ),
-					'1f42d' => __( 'Mouse', 'docs' ),
-					'1f439' => __( 'Hamster', 'docs' ),
-					'1f430' => __( 'Rabbit', 'docs' ),
-					'1f98a' => __( 'Fox', 'docs' ),
-					'1f43b' => __( 'Bear', 'docs' ),
-					'1f43c' => __( 'Panda', 'docs' ),
-					'1f428' => __( 'Koala', 'docs' ),
-					'1f42f' => __( 'Tiger', 'docs' ),
-					'1f981' => __( 'Lion', 'docs' ),
-					'1f435' => __( 'Monkey', 'docs' ),
-				);
-
+				$animals = $GLOBALS['docs_anon_animals'];
 				$animal_code = array_rand( $animals );
 				$animal_name = $animals[ $animal_code ];
 
-				$id = wp_insert_user( array(
-					'user_pass' => wp_generate_password(),
-					'user_login' => wp_generate_password(),
-					'display_name' => sprintf( __( 'Anonymous %s', 'docs' ), $animal_name ),
-					'admin_color' => 'coffee',
-					'role' => 'docs_anon',
-				) );
+				// Use a high fake ID that won't collide with real users.
+				$fake_id = PHP_INT_MAX - wp_rand( 0, 1000000 );
 
-				add_user_meta( $id, 'animal', $animal_code, true );
+				$token = wp_generate_password( 43, false, false );
 
-				// Reload with auth cookie.
-				wp_set_auth_cookie( $id, true );
+				$cookie_data = array(
+					'id'     => $fake_id,
+					'animal' => $animal_code,
+					'name'   => sprintf( __( 'Anonymous %s', 'docs' ), $animal_name ),
+					'token'  => $token,
+				);
+
+				// Set our identity cookie.
+				setcookie(
+					'docs_anon',
+					wp_json_encode( $cookie_data ),
+					0, // Session cookie — expires when browser closes.
+					COOKIEPATH,
+					COOKIE_DOMAIN,
+					is_ssl(),
+					true
+				);
+
+				// Prime the cache so wp_set_auth_cookie can generate a valid HMAC.
+				docs__prime_anon_cache( $cookie_data );
+
+				// Set a real WP auth cookie. It will hash against the cached user_pass
+				// and use our token. wp_validate_auth_cookie will accept it on the
+				// next request because the cache is primed and the session manager
+				// accepts our token.
+				$_COOKIE['docs_anon'] = wp_json_encode( $cookie_data );
+				wp_set_current_user( $fake_id );
+				wp_set_auth_cookie( $fake_id, false, '', $token );
+
 				wp_redirect( get_permalink() );
 				die;
 			}

@@ -55,7 +55,7 @@ test.describe( 'Anonymous link sharing flow', () => {
 
 			// 8. Verify the editor loaded with the doc title.
 			await expect(
-				anonPage.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( 'Public Doc' )
+				anonPage.getByRole( 'button', { name: /Public Doc/ } )
 			).toBeVisible();
 
 			// 9. Verify the user is an anonymous animal.

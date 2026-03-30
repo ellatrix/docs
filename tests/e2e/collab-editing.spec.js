@@ -51,7 +51,7 @@ test.describe( 'Collaborative editing', () => {
 			await dismissWelcomeModal( anonPage );
 
 			await expect(
-				anonPage.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( 'Collab Test' )
+				anonPage.getByRole( 'button', { name: /Collab Test/ } )
 			).toBeVisible();
 
 			// 5. Wait for collab sync to exchange awareness.
