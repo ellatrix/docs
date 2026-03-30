@@ -35,6 +35,11 @@ jobs:
       - name: Deactivate Gutenberg
         run: npx wp-env run tests-cli -- wp plugin deactivate gutenberg
 
+      - name: Verify environment
+        run: |
+          npx wp-env run tests-cli -- wp core version | grep -q '^7\.' || (echo "Expected WP 7.x" && exit 1)
+          npx wp-env run tests-cli -- wp plugin get gutenberg --field=status | grep -q 'inactive' || (echo "Gutenberg should be inactive" && exit 1)
+
       - name: Run e2e tests
         run: npm run test:e2e
 
