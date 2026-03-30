@@ -327,8 +327,7 @@ add_action( 'template_redirect', function() {
 				$animal_code = array_rand( $animals );
 				$animal_name = $animals[ $animal_code ];
 
-				// Use a high fake ID that won't collide with real users.
-				$fake_id = PHP_INT_MAX - wp_rand( 0, 1000000 );
+				$fake_id = PHP_INT_MAX;
 
 				$token = wp_generate_password( 43, false, false );
 
