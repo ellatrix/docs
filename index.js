@@ -55,12 +55,15 @@
 				return {
 					meta: editor.getEditedPostAttribute( 'meta' ),
 					link: post.link,
+					slug: post.slug,
 					authorId: post.author,
 				};
 			} );
 
 			var meta = selected.meta;
-			var link = selected.link;
+			var link = selected.slug
+				? docsSettings.adminUrl + 'post.php?doc=' + selected.slug + '&action=edit'
+				: selected.link;
 			var authorId = selected.authorId;
 			var anyone = meta[ ANYONE_KEY ] || '';
 			var people = getPeople( meta );

@@ -48,7 +48,7 @@ test.describe( 'Anonymous link sharing flow', () => {
 		try {
 			await anonPage.goto( permalink );
 
-			// 7. Should be redirected to the editor (via anon user creation).
+			// 7. Should be redirected to the editor.
 			await expect( anonPage ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
 
 			await dismissWelcomeModal( anonPage );

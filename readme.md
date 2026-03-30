@@ -40,7 +40,8 @@ The `edit_docs` capability is granted to all users dynamically — it serves as 
 ## Future
 
 * **View-only and comment-only sharing** — `docs-share-view` and `docs-share-comment` meta keys. Blocked by WordPress core requiring `edit_posts` for the comments REST API, which prevents granting limited access without also granting full editing.
-* **"Shared with me" view** — list docs shared with the current user by querying `docs-share-edit` meta.
+* **"Shared with me" view** — a dedicated doc list for email-invited users showing docs shared with them. Needs: `read` and `edit_posts` caps granted dynamically for doc admin pages, custom "Mine" and "Shared with me" tabs via `views_edit-doc`, hiding default "All"/"Drafts" tabs for non-admins, and hiding unrelated admin menu items (Posts, Comments, etc.).
+* **Direct editor links** — share links that open the editor directly without a frontend redirect.
 
 ## Development
 

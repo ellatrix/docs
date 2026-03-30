@@ -283,9 +283,9 @@ add_action( 'template_redirect', function() {
 			if ( is_wp_error( $user ) ) {
 				$doc_errors = $user;
 			} else {
-				// Reload with auth cookie.
+				// Reload with auth cookie — go straight to the editor.
 				wp_set_auth_cookie( $user->ID, true );
-				wp_redirect( get_permalink() );
+				wp_redirect( admin_url( 'post.php?doc=' . $post->post_name . '&action=edit' ) );
 				exit;
 			}
 		}
@@ -314,7 +314,7 @@ add_action( 'template_redirect', function() {
 
 				$GLOBALS['docs_use_anon_session'] = false;
 
-				wp_redirect( get_permalink() );
+				wp_redirect( admin_url( 'post.php?doc=' . $post->post_name . '&action=edit' ) );
 				die;
 			}
 
@@ -378,7 +378,7 @@ add_action( 'template_redirect', function() {
 			wp_safe_redirect( add_query_arg( 'checkemail', 'confirm',  get_permalink() ) );
 			exit;
 		} else /* if ( is_singular( array( 'doc' ) ) ) */ {
-			wp_redirect( get_edit_post_link( get_the_ID(), null ) );
+			wp_redirect( admin_url( 'post.php?doc=' . $post->post_name . '&action=edit' ) );
 			exit;
 		}
 	}
@@ -529,6 +529,28 @@ add_action( 'enqueue_block_editor_assets', function() {
 		),
 		filemtime( dirname( __FILE__ ) . '/index.js' )
 	);
+
+	wp_localize_script( 'docs', 'docsSettings', array(
+		'adminUrl' => admin_url(),
+	) );
+
+	// Preserve ?doc=SLUG in the URL. Gutenberg replaces the URL with
+	// ?post=ID&action=edit via history.replaceState. We override it to
+	// keep the slug-based URL.
+	if ( ! empty( $_GET['doc'] ) ) {
+		$slug = sanitize_text_field( $_GET['doc'] );
+		wp_add_inline_script( 'docs', '
+			( function() {
+				var original = window.history.replaceState;
+				window.history.replaceState = function( state, title, url ) {
+					if ( url && url.indexOf( "post.php" ) !== -1 && url.indexOf( "doc=" ) === -1 ) {
+						url = url.replace( /[?&]post=\\d+/, "?doc=' . esc_js( $slug ) . '" );
+					}
+					return original.call( this, state, title, url );
+				};
+			} )();
+		', 'before' );
+	}
 } );
 
 // Send invitation emails when users are added to sharing meta.
@@ -605,6 +627,24 @@ add_action( 'rest_api_init', function() {
 	$sync_server = new Docs_HTTP_Polling_Sync_Server_Custom_Caps( new WP_Sync_Post_Meta_Storage() );
 	$sync_server->register_routes();
 }, 9 );
+
+// Resolve ?doc=SLUG to ?post=ID in wp-admin so the editor can load
+// from a slug-based URL: wp-admin/post.php?doc=SLUG&action=edit
+add_action( 'admin_init', function() {
+	if ( empty( $_GET['doc'] ) || ! empty( $_GET['post'] ) ) {
+		return;
+	}
+	global $wpdb;
+	$slug = sanitize_text_field( $_GET['doc'] );
+	$post_id = $wpdb->get_var( $wpdb->prepare(
+		"SELECT ID FROM $wpdb->posts WHERE post_name = %s AND post_type = 'doc' LIMIT 1",
+		$slug
+	) );
+	if ( $post_id ) {
+		$_GET['post']     = (int) $post_id;
+		$_REQUEST['post'] = (int) $post_id;
+	}
+}, 0 );
 
 add_action( 'pre_get_posts', function( $query ) {
 	if ( is_admin() || ! $query->query || ! isset( $query->query[ 'post_type' ] ) ) {
