@@ -17,6 +17,10 @@ test.describe( 'User autocomplete in share panel', () => {
 		} ).catch( () => {} ); // Ignore if already exists.
 	} );
 
+	test.afterEach( async ( { requestUtils } ) => {
+		await requestUtils.rest( { path: '/docs-test/v1/emails' } );
+	} );
+
 	test( 'focusing the input shows recent users', async ( {
 		admin,
 		page,
@@ -104,7 +108,7 @@ test.describe( 'User autocomplete in share panel', () => {
 		).toBeVisible();
 	} );
 
-	test( 'adding two users stores and displays both', async ( {
+	test( 'adding two users stores both and only emails newly added users', async ( {
 		admin,
 		editor,
 		page,
@@ -123,7 +127,7 @@ test.describe( 'User autocomplete in share panel', () => {
 			await shareButton.click();
 		}
 
-		// Add Jane Doe from autocomplete.
+		// Add Jane Doe from autocomplete and save.
 		const input = page.getByRole( 'combobox', { name: 'Add people' } );
 		await input.fill( 'jane' );
 		await page.getByRole( 'option', { name: /Jane Doe/ } ).click();
@@ -132,19 +136,27 @@ test.describe( 'User autocomplete in share panel', () => {
 			page.locator( '.docs-share-person-name' ).getByText( 'Jane Doe' )
 		).toBeVisible();
 
+		await editor.saveDraft();
+
+		const firstEmails = await requestUtils.rest( { path: '/docs-test/v1/emails' } );
+		expect( firstEmails ).toHaveLength( 1 );
+		expect( firstEmails[ 0 ].to ).toBe( 'jane@example.com' );
+
+		// Dismiss the notice so the next saveDraft() triggers a new save.
+		await page.getByRole( 'button', { name: 'Dismiss this notice' } )
+			.filter( { hasText: 'Draft saved' } )
+			.click();
+
 		// Add a raw email.
 		await input.fill( 'bob@example.com' );
 		await page.getByRole( 'option', { name: /Invite/ } ).click();
 
-		// Wait for the person to appear.
 		await expect(
 			page.locator( '.docs-share-person-name' ).getByText( 'bob@example.com' )
 		).toBeVisible();
 
-		// Both should be visible.
 		await expect( page.locator( '.docs-share-person-row' ) ).toHaveCount( 2 );
 
-		// Save and verify meta is stored correctly.
 		await editor.saveDraft();
 
 		const updatedDoc = await requestUtils.rest( {
@@ -154,5 +166,11 @@ test.describe( 'User autocomplete in share panel', () => {
 		} );
 
 		expect( updatedDoc.meta[ 'docs-share-edit' ] ).toHaveLength( 2 );
+
+		// Only Bob should get an email — Jane was already saved.
+		const secondEmails = await requestUtils.rest( { path: '/docs-test/v1/emails' } );
+		expect( secondEmails ).toHaveLength( 1 );
+		expect( secondEmails[ 0 ].to ).toBe( 'bob@example.com' );
+		expect( secondEmails[ 0 ].subject ).toContain( 'Invitation to Edit' );
 	} );
 } );

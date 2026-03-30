@@ -536,24 +536,49 @@ add_action( 'enqueue_block_editor_assets', function() {
 	);
 } );
 
+// Send invitation emails when users are added to sharing meta.
+// The REST API diffs multi-value meta and only calls add_metadata() for
+// genuinely new values, so this hook fires once per newly added user.
+add_action( 'added_post_meta', function( $meta_id, $post_id, $meta_key, $meta_value ) {
+	$share_keys = array( 'docs-share-edit', 'docs-share-view', 'docs-share-comment' );
+
+	if ( ! in_array( $meta_key, $share_keys, true ) ) {
+		return;
+	}
+
+	$user_id = (int) $meta_value;
+	$post    = get_post( $post_id );
+
+	if ( ! $post || $post->post_type !== 'doc' ) {
+		return;
+	}
+
+	// Don't send to the doc author.
+	if ( (int) $post->post_author === $user_id ) {
+		return;
+	}
+
+	$user = get_userdata( $user_id );
+
+	if ( ! $user || ! $user->user_email ) {
+		return;
+	}
+
+	docs__send_email( $user->user_email, $post );
+}, 10, 4 );
+
 // REST endpoint to get or create a user by email for the share panel.
 add_action( 'rest_api_init', function() {
 	register_rest_route( 'docs/v1', '/get-or-create-user', array(
 		'methods'             => 'POST',
 		'callback'            => function( WP_REST_Request $request ) {
 			$email = sanitize_email( $request->get_param( 'email' ) );
-			$doc_id = $request->get_param( 'doc_id' );
 
 			if ( ! is_email( $email ) ) {
 				return new WP_Error( 'invalid_email', __( 'Invalid email address.', 'docs' ), array( 'status' => 400 ) );
 			}
 
 			$user = docs__get_or_create_user_by_email( $email );
-
-			// Send invitation email if a doc is specified.
-			if ( $doc_id ) {
-				docs__send_email( $email, $doc_id );
-			}
 
 			return array(
 				'id'          => $user->ID,
@@ -569,9 +594,6 @@ add_action( 'rest_api_init', function() {
 			'email' => array(
 				'required' => true,
 				'type'     => 'string',
-			),
-			'doc_id' => array(
-				'type' => 'integer',
 			),
 		),
 	) );

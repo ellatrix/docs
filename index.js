@@ -122,12 +122,15 @@
 			} );
 
 			function addUserIdToMeta( userId, role ) {
+				// Read fresh meta and dispatch directly to avoid stale closures
+				// (e.g. when called from an async .then() after a save).
+				var freshMeta = wp.data.select( 'core/editor' ).getEditedPostAttribute( 'meta' );
 				var key = META_KEYS[ role ];
-				var current = meta[ key ] || [];
+				var current = freshMeta[ key ] || [];
 				if ( current.indexOf( userId ) !== -1 ) return;
 				var updated = {};
 				updated[ key ] = current.concat( userId );
-				editPost( { meta: Object.assign( {}, meta, updated ) } );
+				wp.data.dispatch( 'core/editor' ).editPost( { meta: Object.assign( {}, freshMeta, updated ) } );
 				setFilterValue( '' );
 				setUserOptions( [] );
 			}
@@ -136,11 +139,10 @@
 				if ( typeof emailOrUserId === 'number' ) {
 					addUserIdToMeta( emailOrUserId, 'editor' );
 				} else if ( typeof emailOrUserId === 'string' && emailOrUserId.includes( '@' ) ) {
-					var postId = wp.data.select( 'core/editor' ).getCurrentPostId();
 					apiFetch( {
 						path: '/docs/v1/get-or-create-user',
 						method: 'POST',
-						data: { email: emailOrUserId, doc_id: postId },
+						data: { email: emailOrUserId },
 					} ).then( function ( user ) {
 						addUserIdToMeta( user.id, 'editor' );
 					} );
