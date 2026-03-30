@@ -103,4 +103,56 @@ test.describe( 'User autocomplete in share panel', () => {
 			page.locator( '.docs-share-person-name' ).getByText( 'Jane Doe' )
 		).toBeVisible();
 	} );
+
+	test( 'adding two users stores and displays both', async ( {
+		admin,
+		editor,
+		page,
+		requestUtils,
+	} ) => {
+		const doc = await requestUtils.rest( {
+			path: '/wp/v2/docs',
+			method: 'POST',
+			data: { title: 'Multi User Test', status: 'draft' },
+		} );
+
+		await admin.editPost( doc.id );
+
+		const shareButton = page.getByRole( 'button', { name: 'Share' } );
+		if ( await shareButton.getAttribute( 'aria-expanded' ) !== 'true' ) {
+			await shareButton.click();
+		}
+
+		// Add Jane Doe from autocomplete.
+		const input = page.getByRole( 'combobox', { name: 'Add people' } );
+		await input.fill( 'jane' );
+		await page.getByRole( 'option', { name: /Jane Doe/ } ).click();
+
+		await expect(
+			page.locator( '.docs-share-person-name' ).getByText( 'Jane Doe' )
+		).toBeVisible();
+
+		// Add a raw email.
+		await input.fill( 'bob@example.com' );
+		await page.getByRole( 'option', { name: /Invite/ } ).click();
+
+		// Wait for the person to appear.
+		await expect(
+			page.locator( '.docs-share-person-name' ).getByText( 'bob@example.com' )
+		).toBeVisible();
+
+		// Both should be visible.
+		await expect( page.locator( '.docs-share-person-row' ) ).toHaveCount( 2 );
+
+		// Save and verify meta is stored correctly.
+		await editor.saveDraft();
+
+		const updatedDoc = await requestUtils.rest( {
+			path: '/wp/v2/docs/' + doc.id,
+			method: 'GET',
+			params: { context: 'edit' },
+		} );
+
+		expect( updatedDoc.meta[ 'docs-share-edit' ] ).toHaveLength( 2 );
+	} );
 } );

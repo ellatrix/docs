@@ -43,15 +43,9 @@ register_post_type( 'doc', array(
 ) );
 
 $share_meta_args = array(
-	'type'         => 'array',
-	'single'       => true,
-	'default'      => array(),
-	'show_in_rest' => array(
-		'schema' => array(
-			'type'  => 'array',
-			'items' => array( 'type' => 'integer' ),
-		),
-	),
+	'type'         => 'integer',
+	'single'       => false,
+	'show_in_rest' => true,
 );
 
 register_post_meta( 'doc', 'docs-share-edit', $share_meta_args );

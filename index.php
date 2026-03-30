@@ -213,9 +213,9 @@ add_action( 'template_redirect', function() {
 
 			// Check if there are people with email access.
 			$shared_user_ids = array_merge(
-				get_post_meta( $post->ID, 'docs-share-edit', true ) ?: array(),
-				get_post_meta( $post->ID, 'docs-share-view', true ) ?: array(),
-				get_post_meta( $post->ID, 'docs-share-comment', true ) ?: array()
+				get_post_meta( $post->ID, 'docs-share-edit', false ),
+				get_post_meta( $post->ID, 'docs-share-view', false ),
+				get_post_meta( $post->ID, 'docs-share-comment', false )
 			);
 
 			if ( empty( $shared_user_ids ) ) {
@@ -252,9 +252,9 @@ add_action( 'template_redirect', function() {
 
 			$user = get_user_by( 'email', $email_address );
 			$shared_ids = array_map( 'intval', array_merge(
-				get_post_meta( $post->ID, 'docs-share-edit', true ) ?: array(),
-				get_post_meta( $post->ID, 'docs-share-view', true ) ?: array(),
-				get_post_meta( $post->ID, 'docs-share-comment', true ) ?: array()
+				get_post_meta( $post->ID, 'docs-share-edit', false ),
+				get_post_meta( $post->ID, 'docs-share-view', false ),
+				get_post_meta( $post->ID, 'docs-share-comment', false )
 			) );
 
 			if ( ! $user || ! in_array( $user->ID, $shared_ids, true ) ) {
@@ -653,9 +653,9 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 
 	// Check if user ID is in any of the sharing lists.
 	$all_shared_ids = array_map( 'intval', array_merge(
-		get_post_meta( $post->ID, 'docs-share-edit', true ) ?: array(),
-		get_post_meta( $post->ID, 'docs-share-view', true ) ?: array(),
-		get_post_meta( $post->ID, 'docs-share-comment', true ) ?: array()
+		get_post_meta( $post->ID, 'docs-share-edit', false ),
+		get_post_meta( $post->ID, 'docs-share-view', false ),
+		get_post_meta( $post->ID, 'docs-share-comment', false )
 	) );
 
 	if ( in_array( $user_id, $all_shared_ids, true ) ) {
