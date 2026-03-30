@@ -44,7 +44,6 @@ wp user list --role=docs_anon
 
 * **View-only and comment-only sharing** — `docs-share-view` and `docs-share-comment` meta keys. Blocked by WordPress core requiring `edit_posts` for the comments REST API, which prevents granting limited access without also granting full editing.
 * **"Shared with me" view** — list docs shared with the current user by querying `docs-share-edit` meta.
-* **Uninstall cleanup** — remove roles, meta, cron schedules, and anonymous users on plugin uninstall.
 
 ## Development
 
