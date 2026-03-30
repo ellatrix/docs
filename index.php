@@ -233,7 +233,7 @@ function docs__get_or_create_user_by_email( $email_address ) {
 
 	return get_user_by( 'id', wp_insert_user( array(
 		'user_pass' => wp_generate_password(),
-		'user_login' => 'docs_anon_' . wp_generate_password(),
+		'user_login' => $email_address,
 		'display_name' => $email_address,
 		'user_email' => $email_address,
 		'role' => 'docs_anon',
