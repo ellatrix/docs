@@ -84,7 +84,7 @@ function docs__make_fake_user( $data ) {
 	$user->display_name = $data['name'];
 	$user->user_email = '';
 	$user->caps = array( 'docs_anon' => true );
-	$user->allcaps = array( 'docs_anon' => true, 'edit_docs' => true, 'read' => true );
+	$user->allcaps = array( 'docs_anon' => true, 'edit_docs' => true );
 	$user->roles = array( 'docs_anon' );
 	return $user;
 }
@@ -125,6 +125,7 @@ add_action( 'plugins_loaded', function() {
 	}
 }, 0 );
 
+
 // Also prime on determine_current_user in case plugins_loaded was too late.
 add_filter( 'determine_current_user', function( $user_id ) {
 	static $resolving = false;
@@ -147,7 +148,6 @@ add_filter( 'user_has_cap', function( $allcaps, $caps, $args ) {
 	if ( ! $data || $args[1] !== (int) $data['id'] ) {
 		return $allcaps;
 	}
-	$allcaps['read'] = true;
 	$allcaps['edit_docs'] = true;
 	return $allcaps;
 }, 5, 3 );
