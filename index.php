@@ -18,9 +18,6 @@ add_action( 'init', function() {
 } );
 
 register_activation_hook( __FILE__, function() {
-	remove_role( 'docs_anon' );
-	add_role( 'docs_anon', __( 'Anonymous (Docs)', 'docs' ) );
-
 	// Admin, editor: full doc caps including editing others' docs.
 	foreach ( array( 'administrator', 'editor' ) as $role_name ) {
 		$role = get_role( $role_name );
@@ -37,13 +34,6 @@ register_activation_hook( __FILE__, function() {
 
 	$role = get_role( 'contributor' );
 	$role->add_cap( 'create_docs' );
-	$role->add_cap( 'edit_docs' );
-
-	// docs_anon: minimal caps. edit_docs is needed as a generic capability
-	// check (e.g. collab sync endpoint). Per-doc access is still
-	// controlled by the user_has_cap filter based on sharing settings.
-	$role = get_role( 'docs_anon' );
-
 	$role->add_cap( 'edit_docs' );
 
 	require 'register.php';
@@ -141,14 +131,14 @@ add_filter( 'determine_current_user', function( $user_id ) {
 	return PHP_INT_MAX;
 }, 30 );
 
-// Grant capabilities for the fake user.
-add_filter( 'user_has_cap', function( $allcaps, $caps, $args ) {
-	if ( $args[1] !== PHP_INT_MAX || ! docs__is_anon_cookie() ) {
-		return $allcaps;
-	}
+// Grant edit_docs to all users. This cap alone doesn't grant access to any
+// doc — the per-doc user_has_cap filter below controls actual access based
+// on sharing settings. edit_docs just passes the generic gate checks (e.g.
+// the sync server permission check).
+add_filter( 'user_has_cap', function( $allcaps ) {
 	$allcaps['edit_docs'] = true;
 	return $allcaps;
-}, 5, 3 );
+}, 5 );
 
 // Return metadata for the fake user.
 add_filter( 'get_user_metadata', function( $value, $object_id, $meta_key ) {
@@ -236,7 +226,7 @@ function docs__get_or_create_user_by_email( $email_address ) {
 		'user_login' => $email_address,
 		'display_name' => $email_address,
 		'user_email' => $email_address,
-		'role' => 'docs_anon',
+		'role' => '',
 	) ) );
 }
 
