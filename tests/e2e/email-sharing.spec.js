@@ -81,6 +81,17 @@ test.describe( 'Email sharing flow', () => {
 			await expect(
 				page1.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( 'Sharing Test' )
 			).toBeVisible();
+
+			// 7b. Type something and save as the invited user.
+			const canvas = page1.frameLocator( 'iframe[name="editor-canvas"]' );
+			const editorBlock = canvas.locator( '[data-type="core/paragraph"], .block-editor-default-block-appender' );
+			await editorBlock.first().click();
+			await page1.keyboard.type( 'Hello from invited user' );
+			await page1.getByRole( 'button', { name: 'Save draft' } ).click();
+			await expect(
+				page1.getByRole( 'button', { name: 'Dismiss this notice' } )
+					.filter( { hasText: 'Draft saved' } )
+			).toBeVisible();
 		} finally {
 			await ctx1.close();
 		}

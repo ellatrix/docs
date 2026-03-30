@@ -638,7 +638,7 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 // dynamically when the doc is shared with them. Users who do have it get it
 // revoked when the doc is not shared with them (unless they're the author).
 add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $args ) {
-	if ( ! in_array( $args[0], array( 'edit_post', 'read_post' ), true ) || ! isset( $args[2] ) ) {
+	if ( ! in_array( $args[0], array( 'edit_post', 'read_post', 'edit_post_meta', 'delete_post_meta' ), true ) || ! isset( $args[2] ) ) {
 		return $user_caps;
 	}
 
