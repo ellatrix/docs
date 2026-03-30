@@ -62,43 +62,57 @@ $GLOBALS['docs_anon_animals'] = array(
 	'1f42f' => 'Tiger',  '1f981' => 'Lion',     '1f435' => 'Monkey',
 );
 
-function docs__get_anon_cookie() {
-	if ( empty( $_COOKIE['docs_anon'] ) ) {
-		return null;
-	}
-	$data = json_decode( wp_unslash( $_COOKIE['docs_anon'] ), true );
-	if ( ! is_array( $data ) || empty( $data['id'] ) || empty( $data['animal'] ) || empty( $data['name'] ) ) {
-		return null;
-	}
-	return $data;
+// Derive animal identity from the session token.
+function docs__animal_from_token( $token ) {
+	$animals = $GLOBALS['docs_anon_animals'];
+	$codes = array_keys( $animals );
+	$index = abs( crc32( $token ) ) % count( $codes );
+	$code = $codes[ $index ];
+	return array(
+		'code' => $code,
+		'name' => sprintf( __( 'Anonymous %s', 'docs' ), $animals[ $code ] ),
+	);
 }
 
-function docs__make_fake_user( $data ) {
-	$user = new WP_User();
-	$user->ID = (int) $data['id'];
-	$user->user_login = 'docs_anon_' . $data['id'];
-	$user->user_nicename = 'docs_anon_' . $data['id'];
-	$user->display_name = $data['name'];
-	$user->user_email = '';
-	$user->caps = array( 'docs_anon' => true );
-	$user->allcaps = array( 'docs_anon' => true, 'edit_docs' => true );
-	$user->roles = array( 'docs_anon' );
-	return $user;
+// Detect a fake anon user from the WP logged-in cookie.
+// Returns the parsed token or null if not a fake user.
+function docs__is_anon_cookie() {
+	$cookie = $_COOKIE[ LOGGED_IN_COOKIE ] ?? '';
+	if ( ! $cookie ) {
+		return null;
+	}
+	$parts = explode( '|', $cookie );
+	if ( ! isset( $parts[0], $parts[2] ) ) {
+		return null;
+	}
+	if ( $parts[0] !== 'docs_anon_' . PHP_INT_MAX ) {
+		return null;
+	}
+	return $parts[2]; // the session token
 }
 
 // Prime the user cache with our fake user so WP_User never hits the DB.
-function docs__prime_anon_cache( $data ) {
+// Accepts an optional token for the first request before the cookie exists.
+function docs__prime_anon_cache( $token = null ) {
+	if ( ! $token ) {
+		$token = docs__is_anon_cookie();
+	}
+	if ( ! $token ) {
+		return;
+	}
+	$animal = docs__animal_from_token( $token );
+	$id = PHP_INT_MAX;
 	$obj = new stdClass();
-	$obj->ID = (int) $data['id'];
-	$obj->user_login = 'docs_anon_' . $data['id'];
-	$obj->user_nicename = 'docs_anon_' . $data['id'];
+	$obj->ID = $id;
+	$obj->user_login = 'docs_anon_' . $id;
+	$obj->user_nicename = 'docs_anon_' . $id;
 	$obj->user_email = '';
 	$obj->user_url = '';
 	$obj->user_pass = 'fake';
 	$obj->user_registered = '2020-01-01 00:00:00';
 	$obj->user_activation_key = '';
 	$obj->user_status = 0;
-	$obj->display_name = $data['name'];
+	$obj->display_name = $animal['name'];
 	wp_cache_set( $obj->ID, $obj, 'users' );
 	wp_cache_set( $obj->user_login, $obj->ID, 'userlogins' );
 }
@@ -108,18 +122,7 @@ function docs__prime_anon_cache( $data ) {
 // If the WP auth cookie is missing or invalid, clear the docs_anon cookie
 // so the user gets a fresh identity on the next visit.
 add_action( 'plugins_loaded', function() {
-	$data = docs__get_anon_cookie();
-	if ( ! $data ) {
-		return;
-	}
-	docs__prime_anon_cache( $data );
-
-	// Check if the WP auth cookie exists. If not, the docs_anon cookie is
-	// stale (e.g. WP cookie expired or was never set). Clear it.
-	if ( empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
-		setcookie( 'docs_anon', '', time() - DAY_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN );
-		unset( $_COOKIE['docs_anon'] );
-	}
+	docs__prime_anon_cache();
 }, 0 );
 
 
@@ -129,36 +132,35 @@ add_filter( 'determine_current_user', function( $user_id ) {
 	if ( $user_id || $resolving ) {
 		return $user_id;
 	}
-	$data = docs__get_anon_cookie();
-	if ( ! $data ) {
+	if ( ! docs__is_anon_cookie() ) {
 		return $user_id;
 	}
 	$resolving = true;
-	docs__prime_anon_cache( $data );
+	docs__prime_anon_cache();
 	$resolving = false;
-	return (int) $data['id'];
+	return PHP_INT_MAX;
 }, 30 );
 
 // Grant capabilities for the fake user.
 add_filter( 'user_has_cap', function( $allcaps, $caps, $args ) {
-	$data = docs__get_anon_cookie();
-	if ( ! $data || $args[1] !== (int) $data['id'] ) {
+	if ( $args[1] !== PHP_INT_MAX || ! docs__is_anon_cookie() ) {
 		return $allcaps;
 	}
 	$allcaps['edit_docs'] = true;
 	return $allcaps;
 }, 5, 3 );
 
-// Return the animal avatar for the fake user.
-add_filter( 'get_user_metadata', function( $value, $object_id, $meta_key, $single ) {
-	$data = docs__get_anon_cookie();
-	if ( ! $data || $object_id !== (int) $data['id'] ) {
+// Return metadata for the fake user.
+add_filter( 'get_user_metadata', function( $value, $object_id, $meta_key ) {
+	$token = docs__is_anon_cookie();
+	if ( ! $token || $object_id !== PHP_INT_MAX ) {
 		return $value;
 	}
 	// The get_user_metadata filter must return array( $value ) for handled keys.
 	// WordPress does $check[0] when $single is true.
 	if ( $meta_key === 'animal' ) {
-		return array( $data['animal'] );
+		$animal = docs__animal_from_token( $token );
+		return array( $animal['code'] );
 	}
 	if ( $meta_key === 'admin_color' ) {
 		return array( 'coffee' );
@@ -169,12 +171,11 @@ add_filter( 'get_user_metadata', function( $value, $object_id, $meta_key, $singl
 		return array( 'true' );
 	}
 	return $value;
-}, 10, 4 );
+}, 10, 3 );
 
 // Return the current blog for fake users so the admin bar works.
 add_filter( 'pre_get_blogs_of_user', function( $sites, $user_id ) {
-	$data = docs__get_anon_cookie();
-	if ( ! $data || (int) $data['id'] !== $user_id ) {
+	if ( $user_id !== PHP_INT_MAX || ! docs__is_anon_cookie() ) {
 		return $sites;
 	}
 	$site_id = get_current_blog_id();
@@ -207,24 +208,15 @@ class Docs_Anon_Session_Tokens extends WP_Session_Tokens {
 
 // Use the fake session token manager for anon users.
 // Only apply when validating the fake user's session — not for real users.
+// The global flag is set during the first request when the cookie doesn't
+// exist in $_COOKIE yet (it's being sent in the response).
+$GLOBALS['docs_use_anon_session'] = false;
+
 add_filter( 'session_token_manager', function( $manager ) {
-	$data = docs__get_anon_cookie();
-	if ( ! $data ) {
-		return $manager;
+	if ( $GLOBALS['docs_use_anon_session'] || docs__is_anon_cookie() ) {
+		return 'Docs_Anon_Session_Tokens';
 	}
-	// Parse the logged-in cookie to check which user it belongs to.
-	// Only use our fake manager for the fake user ID, not real users.
-	$cookie = $_COOKIE[ LOGGED_IN_COOKIE ] ?? '';
-	if ( $cookie ) {
-		$parts = explode( '|', $cookie );
-		if ( isset( $parts[0] ) ) {
-			$login = $parts[0];
-			if ( $login !== 'docs_anon_' . PHP_INT_MAX ) {
-				return $manager;
-			}
-		}
-	}
-	return 'Docs_Anon_Session_Tokens';
+	return $manager;
 } );
 
 // The REST API checks cookie nonces. For fake users, the nonce is generated
@@ -331,42 +323,20 @@ add_action( 'template_redirect', function() {
 
 			// "anyone with the link" — any of the link-sharing values.
 			if ( in_array( $anyone, array( 'anyone', 'anyone-view', 'anyone-comment' ), true ) ) {
-				$animals = $GLOBALS['docs_anon_animals'];
-				$animal_code = array_rand( $animals );
-				$animal_name = $animals[ $animal_code ];
-
 				$fake_id = PHP_INT_MAX;
-
 				$token = wp_generate_password( 43, false, false );
 
-				$cookie_data = array(
-					'id'     => $fake_id,
-					'animal' => $animal_code,
-					'name'   => sprintf( __( 'Anonymous %s', 'docs' ), $animal_name ),
-					'token'  => $token,
-				);
+				// Prime the cache so wp_set_auth_cookie generates the right HMAC.
+				docs__prime_anon_cache( $token );
 
-				// Set our identity cookie.
-				setcookie(
-					'docs_anon',
-					wp_json_encode( $cookie_data ),
-					0, // Session cookie — expires when browser closes.
-					COOKIEPATH,
-					COOKIE_DOMAIN,
-					is_ssl(),
-					true
-				);
+				// Flag for the session token manager — the cookie doesn't exist
+				// in $_COOKIE yet since it's being set in this response.
+				$GLOBALS['docs_use_anon_session'] = true;
 
-				// Prime the cache so wp_set_auth_cookie can generate a valid HMAC.
-				docs__prime_anon_cache( $cookie_data );
-
-				// Set a real WP auth cookie. It will hash against the cached user_pass
-				// and use our token. wp_validate_auth_cookie will accept it on the
-				// next request because the cache is primed and the session manager
-				// accepts our token.
-				$_COOKIE['docs_anon'] = wp_json_encode( $cookie_data );
 				wp_set_current_user( $fake_id );
 				wp_set_auth_cookie( $fake_id, false, '', $token );
+
+				$GLOBALS['docs_use_anon_session'] = false;
 
 				wp_redirect( get_permalink() );
 				die;
