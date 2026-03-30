@@ -18,27 +18,8 @@ add_action( 'init', function() {
 } );
 
 register_activation_hook( __FILE__, function() {
-	// Admin, editor: full doc caps including editing others' docs.
-	foreach ( array( 'administrator', 'editor' ) as $role_name ) {
-		$role = get_role( $role_name );
-		$role->add_cap( 'create_docs' );
-		$role->add_cap( 'edit_others_docs' );
-		$role->add_cap( 'edit_docs' );
-		$role->add_cap( 'edit_published_docs' );
-	}
-
-	$role = get_role( 'author' );
-	$role->add_cap( 'create_docs' );
-	$role->add_cap( 'edit_docs' );
-	$role->add_cap( 'edit_published_docs' );
-
-	$role = get_role( 'contributor' );
-	$role->add_cap( 'create_docs' );
-	$role->add_cap( 'edit_docs' );
-
 	require 'register.php';
 	flush_rewrite_rules();
-
 } );
 
 // Fake user system for anonymous "anyone with the link" visitors.
@@ -131,12 +112,17 @@ add_filter( 'determine_current_user', function( $user_id ) {
 	return PHP_INT_MAX;
 }, 30 );
 
-// Grant edit_docs to all users. This cap alone doesn't grant access to any
-// doc — the per-doc user_has_cap filter below controls actual access based
-// on sharing settings. edit_docs just passes the generic gate checks (e.g.
-// the sync server permission check).
+// Map standard post capabilities to doc capabilities dynamically. Users who
+// can create/edit posts can also create/edit docs. Per-doc access is still
+// controlled by the sharing-based user_has_cap filter below.
 add_filter( 'user_has_cap', function( $allcaps ) {
 	$allcaps['edit_docs'] = true;
+	if ( ! empty( $allcaps['edit_posts'] ) ) {
+		$allcaps['create_docs']         = true;
+	}
+	if ( ! empty( $allcaps['edit_others_posts'] ) ) {
+		$allcaps['edit_others_docs'] = true;
+	}
 	return $allcaps;
 }, 5 );
 
@@ -679,7 +665,7 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 	}
 
 	// Not shared — deny doc caps for non-authors.
-	unset( $user_caps['edit_docs'], $user_caps['edit_others_docs'], $user_caps['edit_published_docs'] );
+	unset( $user_caps['edit_docs'], $user_caps['edit_others_docs'] );
 	return $user_caps;
 }, 10, 3 );
 
