@@ -10,7 +10,7 @@
 		"env:stop": "wp-env stop",
 		"env:destroy": "wp-env destroy",
 		"test:e2e": "wp-scripts test-playwright --config playwright.config.js",
-		"test:e2e:7.0": "wp-env start --config .wp-env.7.0.json && npm run test:e2e"
+		"test:e2e:7.0": "cp .wp-env.json .wp-env.json.bak && cp .wp-env.7.0.json .wp-env.json && wp-env start --update && wp-env run tests-cli -- wp plugin deactivate gutenberg && npm run test:e2e; cp .wp-env.json.bak .wp-env.json && wp-env start"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.58.2",
