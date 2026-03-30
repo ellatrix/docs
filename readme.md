@@ -23,10 +23,6 @@ The share panel (in the document sidebar) lets you control access:
 * **Specific people** — invite collaborators by email. They receive a magic link to access the editor without needing a WordPress account.
 * **Restricted** — only the document author and invited people can access.
 
-### Anonymous users
-
-Anonymous collaborators are assigned a random animal identity (name + emoji avatar) so they're distinguishable during collaboration. They are automatically cleaned up when their sessions expire.
-
 ## Architecture
 
 All collaborators — anonymous link visitors, email-invited people, and existing WP users — are stored as WordPress users. This simplifies capability checks, avatar handling, and collaborative editing presence.
@@ -43,7 +39,7 @@ The `docs_anon` role is hidden from the admin users list and user search queries
 wp user list --role=docs_anon
 ```
 
-## Future development
+## Future
 
 * **View-only and comment-only sharing** — `docs-share-view` and `docs-share-comment` meta keys. Blocked by WordPress core requiring `edit_posts` for the comments REST API, which prevents granting limited access without also granting full editing.
 * **"Shared with me" view** — list docs shared with the current user by querying `docs-share-edit` meta.
