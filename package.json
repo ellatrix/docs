@@ -9,7 +9,8 @@
 		"env:start": "wp-env start",
 		"env:stop": "wp-env stop",
 		"env:destroy": "wp-env destroy",
-		"test:e2e": "wp-scripts test-playwright --config playwright.config.js"
+		"test:e2e": "wp-scripts test-playwright --config playwright.config.js",
+		"test:e2e:7.0": "wp-env start --config .wp-env.7.0.json && npm run test:e2e"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.58.2",
