@@ -120,7 +120,7 @@ add_filter( 'user_has_cap', function( $allcaps ) {
 	if ( ! empty( $allcaps['edit_posts'] ) ) {
 		$allcaps['create_docs']         = true;
 	}
-	if ( ! empty( $allcaps['edit_others_posts'] ) ) {
+	if ( ! empty( $allcaps['manage_options'] ) ) {
 		$allcaps['edit_others_docs'] = true;
 	}
 	return $allcaps;
@@ -633,8 +633,8 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 
 	$user_id = $args[1];
 
-	// Authors can always edit their own docs.
-	if ( (int) $post->post_author === $user_id ) {
+	// Authors and admins can always edit any doc.
+	if ( (int) $post->post_author === $user_id || ! empty( $user_caps['manage_options'] ) ) {
 		return $user_caps;
 	}
 
@@ -656,7 +656,6 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 	if ( $grant ) {
 		$user_caps['edit_docs']           = true;
 		$user_caps['edit_others_docs']    = true;
-		$user_caps['edit_published_docs'] = true;
 		// Allow file uploads for real users (not anonymous fake users).
 		if ( $user_id !== PHP_INT_MAX ) {
 			$user_caps['upload_files'] = true;
