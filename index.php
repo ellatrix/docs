@@ -45,9 +45,6 @@ register_activation_hook( __FILE__, function() {
 	$role = get_role( 'docs_anon' );
 
 	$role->add_cap( 'edit_docs' );
-	// Required to read global styles (wp_global_styles CPT) which the block
-	// editor fetches client-side for theme features like padding-aware alignments.
-	$role->add_cap( 'read' );
 
 	require 'register.php';
 	flush_rewrite_rules();
