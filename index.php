@@ -209,14 +209,25 @@ class Docs_Anon_Session_Tokens extends WP_Session_Tokens {
 }
 
 // Use the fake session token manager for anon users.
+// Only apply when validating the fake user's session — not for real users.
 add_filter( 'session_token_manager', function( $manager ) {
-	// Only check the cookie — never call get_current_user_id() here
-	// because this filter fires during wp_validate_auth_cookie which
-	// itself is called during determine_current_user.
-	if ( docs__get_anon_cookie() ) {
-		return 'Docs_Anon_Session_Tokens';
+	$data = docs__get_anon_cookie();
+	if ( ! $data ) {
+		return $manager;
 	}
-	return $manager;
+	// Parse the logged-in cookie to check which user it belongs to.
+	// Only use our fake manager for the fake user ID, not real users.
+	$cookie = $_COOKIE[ LOGGED_IN_COOKIE ] ?? '';
+	if ( $cookie ) {
+		$parts = explode( '|', $cookie );
+		if ( isset( $parts[0] ) ) {
+			$login = $parts[0];
+			if ( $login !== 'docs_anon_' . PHP_INT_MAX ) {
+				return $manager;
+			}
+		}
+	}
+	return 'Docs_Anon_Session_Tokens';
 } );
 
 // The REST API checks cookie nonces. For fake users, the nonce is generated
