@@ -85,7 +85,11 @@ test.describe( 'Email sharing flow', () => {
 			await ctx1.close();
 		}
 
-		// 8. Visit the doc link again logged out — should show the email form.
+		// 8. Visit the magic link while already logged in — should redirect to editor.
+		await page.goto( magicLink );
+		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
+
+		// 9. Visit the doc link again logged out — should show the email form.
 		const ctx2 = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
 		const page2 = await ctx2.newPage();
 
@@ -95,7 +99,7 @@ test.describe( 'Email sharing flow', () => {
 			await expect( page2.locator( '#user_login' ) ).toBeVisible();
 			await expect( page2.locator( '#wp-submit' ) ).toBeVisible();
 
-			// 9. Submit the email form to request a new magic link.
+			// 10. Submit the email form to request a new magic link.
 			await page2.fill( '#user_login', 'invited@example.com' );
 			await page2.click( '#wp-submit' );
 			await expect( page2 ).toHaveURL( /checkemail=confirm/ );
@@ -103,7 +107,7 @@ test.describe( 'Email sharing flow', () => {
 			await ctx2.close();
 		}
 
-		// 10. Check that a new magic link email was sent.
+		// 11. Check that a new magic link email was sent.
 		const email2 = await getLastEmail( page );
 		const lines2 = email2.message.split( '\r\n\r\n' );
 		expect( email2.to ).toBe( 'invited@example.com' );
@@ -112,7 +116,7 @@ test.describe( 'Email sharing flow', () => {
 		expect( lines2[ 1 ] ).toBe( 'admin from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
 		expect( lines2[ 2 ] ).toMatch( /^http:\/\/[^/]+\/\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
 
-		// 11. Use the new magic link to open the editor.
+		// 12. Use the new magic link to open the editor.
 		const magicLink2 = lines2[ 2 ];
 		const ctx3 = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
 		const page3 = await ctx3.newPage();
