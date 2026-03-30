@@ -218,6 +218,7 @@
 				// Anyone with the link toggle.
 				el( ToggleControl, {
 					label: __( 'Anyone with the link can edit', 'docs' ),
+					help: anyone === 'anyone' ? __( 'Anonymous visitors cannot upload files. Invite by email to enable uploads.', 'docs' ) : undefined,
 					checked: anyone === 'anyone',
 					onChange: function ( checked ) {
 						editPost( { meta: Object.assign( {}, meta, {
