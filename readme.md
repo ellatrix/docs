@@ -27,6 +27,22 @@ The share panel (in the document sidebar) lets you control access:
 
 Anonymous collaborators are assigned a random animal identity (name + emoji avatar) so they're distinguishable during collaboration. They are automatically cleaned up when their sessions expire.
 
+## Architecture
+
+All collaborators — anonymous link visitors, email-invited people, and existing WP users — are stored as WordPress users. This simplifies capability checks, avatar handling, and collaborative editing presence.
+
+* **Anonymous link visitors** get a `docs_anon` user with a random animal name, no email, and a session cookie. A daily cron job (`docs_cleanup_anon_users`) deletes these users once all their sessions expire.
+* **Email-invited people** get a `docs_anon` user with their email address. They receive a magic link (password reset key) to log in. These users persist so they can be re-invited to other docs. If a real WP account is later created with the same email, the `docs_anon` account is automatically upgraded.
+* **Existing WP users** are added directly by user ID from the autocomplete.
+
+Sharing permissions are stored as post meta (`docs-share-edit`, `docs-share-view`, `docs-share-comment`) with one meta row per user ID (`single: false, type: integer`). A `user_has_cap` filter grants or denies doc editing capabilities dynamically based on these meta values. Invitation emails are sent via an `added_post_meta` hook — WordPress diffs multi-value meta on save, so emails are only sent for newly added users.
+
+The `docs_anon` role is hidden from the admin users list and user search queries via a `pre_get_users` filter. To list these users with WP-CLI, pass the role explicitly:
+
+```bash
+wp user list --role=docs_anon
+```
+
 ## Development
 
 Requires [Docker](https://www.docker.com/) and [Node.js](https://nodejs.org/).
