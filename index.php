@@ -113,10 +113,27 @@ function docs__prime_anon_cache( $token = null ) {
 // Prime the user cache as early as possible so wp_validate_auth_cookie()
 // (called by auth_redirect in wp-admin) can find our fake user.
 add_action( 'plugins_loaded', function() {
-	// If already authenticated as anon, just prime the cache.
-	if ( docs__is_anon_cookie() ) {
-		docs__prime_anon_cache();
-		return;
+	// If already authenticated as anon, prime the cache.
+	$anon_token = docs__is_anon_cookie();
+	if ( $anon_token ) {
+		// Check that the cookie ID matches what we'd compute from the token.
+		// Stale cookies from older versions may have a different ID.
+		$cookie_parts = explode( '|', $_COOKIE[ LOGGED_IN_COOKIE ] );
+		$cookie_id = (int) substr( $cookie_parts[0], strlen( 'docs_anon_' ) );
+		$expected_id = docs__fake_user_id( $anon_token );
+
+		if ( $cookie_id === $expected_id ) {
+			docs__prime_anon_cache();
+			return;
+		}
+
+		// ID mismatch — clear stale cookie and ask the user to refresh.
+		wp_clear_auth_cookie();
+		wp_die(
+			__( 'Your session has expired. Please <a href="">refresh the page</a> to continue.', 'docs' ),
+			__( 'Session Expired', 'docs' ),
+			array( 'response' => 200 )
+		);
 	}
 
 	// All remaining checks require ?doc=SLUG in wp-admin.
@@ -374,14 +391,21 @@ add_action( 'login_init', function() {
 	}
 
 	$slug = $matches[1];
-	global $wpdb;
-	$post_id = $wpdb->get_var( $wpdb->prepare(
-		"SELECT ID FROM $wpdb->posts WHERE post_name = %s AND post_type = 'doc' LIMIT 1",
-		$slug
-	) );
+	$post = get_page_by_path( $slug, OBJECT, 'doc' );
 
-	if ( ! $post_id ) {
+	if ( ! $post ) {
 		return;
+	}
+
+	$post_id = $post->ID;
+
+	// If "anyone with the link" is enabled, clear the invalid cookie
+	// and redirect to the doc URL to create an anon identity.
+	$anyone = get_post_meta( $post_id, 'docs-share-anyone', true );
+	if ( in_array( $anyone, array( 'anyone', 'anyone-view', 'anyone-comment' ), true ) ) {
+		wp_clear_auth_cookie();
+		wp_safe_redirect( admin_url( 'post.php?doc=' . $slug . '&action=edit' ) );
+		exit;
 	}
 
 	// Pre-fill email from the expired magic link's login param.
