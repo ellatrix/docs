@@ -45,6 +45,12 @@ function docs__animal_from_token( $token ) {
 	);
 }
 
+// Derive a fake user ID from a session token. On 64-bit PHP, each token
+// gets a unique ID. On 32-bit PHP, all anon users share PHP_INT_MAX.
+function docs__fake_user_id( $token ) {
+	return PHP_INT_SIZE >= 8 ? PHP_INT_MAX - abs( crc32( $token ) ) : PHP_INT_MAX;
+}
+
 // Detect a fake anon user from the WP logged-in cookie.
 // Returns the parsed token or null if not a fake user.
 function docs__is_anon_cookie() {
@@ -56,7 +62,7 @@ function docs__is_anon_cookie() {
 	if ( ! isset( $parts[0], $parts[2] ) ) {
 		return null;
 	}
-	if ( $parts[0] !== 'docs_anon_' . PHP_INT_MAX ) {
+	if ( strpos( $parts[0], 'docs_anon_' ) !== 0 ) {
 		return null;
 	}
 	return $parts[2]; // the session token
@@ -72,7 +78,7 @@ function docs__prime_anon_cache( $token = null ) {
 		return;
 	}
 	$animal = docs__animal_from_token( $token );
-	$id = PHP_INT_MAX;
+	$id = docs__fake_user_id( $token );
 	$obj = new stdClass();
 	$obj->ID = $id;
 	$obj->user_login = 'docs_anon_' . $id;
@@ -155,8 +161,8 @@ add_action( 'plugins_loaded', function() {
 	}
 
 	// Create the fake anon user.
-	$fake_id = PHP_INT_MAX;
 	$token = wp_generate_password( 43, false, false );
+	$fake_id = docs__fake_user_id( $token );
 
 	docs__prime_anon_cache( $token );
 
@@ -178,13 +184,14 @@ add_filter( 'determine_current_user', function( $user_id ) {
 	if ( $user_id || $resolving ) {
 		return $user_id;
 	}
-	if ( ! docs__is_anon_cookie() ) {
+	$token = docs__is_anon_cookie();
+	if ( ! $token ) {
 		return $user_id;
 	}
 	$resolving = true;
 	docs__prime_anon_cache();
 	$resolving = false;
-	return PHP_INT_MAX;
+	return docs__fake_user_id( $token );
 }, 30 );
 
 // Map standard post capabilities to doc capabilities dynamically. Users who
@@ -204,7 +211,7 @@ add_filter( 'user_has_cap', function( $allcaps ) {
 // Return metadata for the fake user.
 add_filter( 'get_user_metadata', function( $value, $object_id, $meta_key ) {
 	$token = docs__is_anon_cookie();
-	if ( ! $token || $object_id !== PHP_INT_MAX ) {
+	if ( ! $token || $object_id !== docs__fake_user_id( $token ) ) {
 		return $value;
 	}
 	// The get_user_metadata filter must return array( $value ) for handled keys.
@@ -226,7 +233,7 @@ add_filter( 'get_user_metadata', function( $value, $object_id, $meta_key ) {
 
 // Return the current blog for fake users so the admin bar works.
 add_filter( 'pre_get_blogs_of_user', function( $sites, $user_id ) {
-	if ( $user_id !== PHP_INT_MAX || ! docs__is_anon_cookie() ) {
+	if ( ! docs__is_anon_cookie() ) {
 		return $sites;
 	}
 	$site_id = get_current_blog_id();
@@ -472,6 +479,7 @@ add_filter( 'block_editor_settings_all', function( $settings, $context ) {
 	return $settings;
 }, 10, 2 );
 
+
 add_action( 'enqueue_block_editor_assets', function() {
 	if ( get_post_type() !== 'doc' ) {
 		return;
@@ -506,10 +514,6 @@ add_action( 'enqueue_block_editor_assets', function() {
 		'adminUrl' => admin_url(),
 	) );
 
-	// Remove the collaborator limit (default is 3).
-	wp_add_inline_script( 'docs', '
-		wp.hooks.addFilter( "sync.pollingProvider.maxClientsPerRoom", "docs", function() { return Infinity; } );
-	', 'before' );
 
 	// Preserve ?doc=SLUG in the URL. Gutenberg replaces the URL with
 	// ?post=ID&action=edit via history.replaceState. We override it to
@@ -671,7 +675,7 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 		$user_caps['edit_docs']           = true;
 		$user_caps['edit_others_docs']    = true;
 		// Allow file uploads for real users (not anonymous fake users).
-		if ( $user_id !== PHP_INT_MAX ) {
+		if ( ! docs__is_anon_cookie() ) {
 			$user_caps['upload_files'] = true;
 		}
 		return $user_caps;

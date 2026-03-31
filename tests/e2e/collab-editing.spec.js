@@ -79,4 +79,59 @@ test.describe( 'Collaborative editing', () => {
 			await anonContext.close();
 		}
 	} );
+
+	test( 'more than 3 anonymous users can collaborate simultaneously', async ( {
+		admin,
+		editor,
+		page,
+		requestUtils,
+	} ) => {
+		const doc = await requestUtils.rest( {
+			path: '/wp/v2/docs',
+			method: 'POST',
+			data: { title: 'Limit Test', status: 'draft' },
+		} );
+
+		await admin.editPost( doc.id );
+
+		const shareButton = page.getByRole( 'button', { name: 'Share' } );
+		if ( await shareButton.getAttribute( 'aria-expanded' ) !== 'true' ) {
+			await shareButton.click();
+		}
+		await page.getByLabel( 'Anyone with the link can edit' ).click();
+		await editor.saveDraft();
+
+		const shareLink = BASE_URL + '/wp-admin/post.php?doc=' + doc.slug + '&action=edit';
+		const contexts = [];
+
+		try {
+			for ( let i = 0; i < 4; i++ ) {
+				const ctx = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
+				const anonPage = await ctx.newPage();
+				await anonPage.goto( shareLink );
+				await expect( anonPage ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
+				contexts.push( ctx );
+			}
+
+			// Wait for presence to show all collaborators.
+			const presence = page.locator( '.editor-collaborators-presence' );
+			await expect( presence ).toBeVisible( { timeout: 15000 } );
+			await presence.locator( 'button' ).click();
+
+			const items = page.locator( '.editor-collaborators-presence__list-item' );
+			// 4 anon + 1 admin = 5.
+			await expect( items ).toHaveCount( 5, { timeout: 15000 } );
+
+			// Verify the anonymous animals are not all the same.
+			const names = await page.locator( '.editor-collaborators-presence__list-item-name' ).allTextContents();
+			const anonNames = names.filter( function( n ) { return n.startsWith( 'Anonymous' ); } );
+			const uniqueNames = [ ...new Set( anonNames ) ];
+			expect( uniqueNames.length ).toBeGreaterThan( 1 );
+		} finally {
+			for ( const ctx of contexts ) {
+				await ctx.close();
+			}
+		}
+	} );
+
 } );

@@ -1,4 +1,7 @@
 ( function () {
+	// Raise the collaborator limit (default is 3).
+	wp.hooks.addFilter( 'sync.pollingProvider.maxClientsPerRoom', 'docs', function () { return 1000; } );
+
 	var el = wp.element.createElement;
 	var useState = wp.element.useState;
 	var __ = wp.i18n.__;
