@@ -141,12 +141,9 @@ add_action( 'plugins_loaded', function() {
 	}
 
 	// Handle anonymous "anyone with the link" access.
-	global $wpdb;
 	$slug = sanitize_text_field( $_GET['doc'] );
-	$post_id = $wpdb->get_var( $wpdb->prepare(
-		"SELECT ID FROM $wpdb->posts WHERE post_name = %s AND post_type = 'doc' LIMIT 1",
-		$slug
-	) );
+	$post = get_page_by_path( $slug, OBJECT, 'doc' );
+	$post_id = $post ? $post->ID : 0;
 
 	if ( ! $post_id ) {
 		return;
@@ -168,13 +165,10 @@ add_action( 'plugins_loaded', function() {
 	wp_set_auth_cookie( $fake_id, false, '', $token );
 	$GLOBALS['docs_use_anon_session'] = false;
 
-	// Set $_COOKIE so auth_redirect sees the cookie on this same request.
-	$_COOKIE[ LOGGED_IN_COOKIE ] = wp_generate_auth_cookie(
-		$fake_id, time() + 2 * DAY_IN_SECONDS, 'logged_in', $token
-	);
-	$_COOKIE[ AUTH_COOKIE ] = wp_generate_auth_cookie(
-		$fake_id, time() + 2 * DAY_IN_SECONDS, 'auth', $token
-	);
+	// Redirect to the same URL. The browser sends the new cookie on the
+	// next request, just like core does after wp-login.php.
+	wp_safe_redirect( admin_url( 'post.php?doc=' . $slug . '&action=edit' ) );
+	exit;
 }, 0 );
 
 
@@ -611,12 +605,9 @@ add_action( 'admin_init', function() {
 	if ( empty( $_GET['doc'] ) || ! empty( $_GET['post'] ) ) {
 		return;
 	}
-	global $wpdb;
 	$slug = sanitize_text_field( $_GET['doc'] );
-	$post_id = $wpdb->get_var( $wpdb->prepare(
-		"SELECT ID FROM $wpdb->posts WHERE post_name = %s AND post_type = 'doc' LIMIT 1",
-		$slug
-	) );
+	$post = get_page_by_path( $slug, OBJECT, 'doc' );
+	$post_id = $post ? $post->ID : 0;
 	if ( $post_id ) {
 		$_GET['post']     = (int) $post_id;
 		$_REQUEST['post'] = (int) $post_id;
