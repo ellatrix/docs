@@ -497,6 +497,7 @@ add_action( 'enqueue_block_editor_assets', function() {
 			'wp-compose',
 			'wp-api-fetch',
 			'wp-primitives',
+			'wp-hooks',
 		),
 		filemtime( dirname( __FILE__ ) . '/index.js' )
 	);
@@ -504,6 +505,11 @@ add_action( 'enqueue_block_editor_assets', function() {
 	wp_localize_script( 'docs', 'docsSettings', array(
 		'adminUrl' => admin_url(),
 	) );
+
+	// Remove the collaborator limit (default is 3).
+	wp_add_inline_script( 'docs', '
+		wp.hooks.addFilter( "sync.pollingProvider.maxClientsPerRoom", "docs", function() { return Infinity; } );
+	', 'before' );
 
 	// Preserve ?doc=SLUG in the URL. Gutenberg replaces the URL with
 	// ?post=ID&action=edit via history.replaceState. We override it to
