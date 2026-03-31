@@ -51,3 +51,6 @@ register_post_meta( 'doc', 'docs-share-anyone', array(
 	'single' => true,
 	'type' => 'string',
 ) );
+
+// Enable block notes (comments) for docs.
+add_post_type_support( 'doc', 'editor', array( 'notes' => true ) );

@@ -664,6 +664,36 @@ add_action( 'rest_api_init', function() {
 } );
 
 // Replace the sync server with our subclass that supports doc capabilities.
+// Grant edit_posts for note comments on docs.
+// Without edit_posts, the 'type' and 'status' params are forbidden:
+// https://github.com/WordPress/WordPress/blob/6.9/wp-includes/rest-api/endpoints/class-wp-rest-comments-controller.php#L200
+add_filter( 'rest_pre_dispatch', function( $result, $server, $request ) {
+	if ( strpos( $request->get_route(), '/wp/v2/comments' ) !== 0 ) {
+		return $result;
+	}
+
+	// Only for note-type comments.
+	if ( $request->get_param( 'type' ) !== 'note' ) {
+		return $result;
+	}
+
+	$post_id = $request->get_param( 'post' );
+	if ( ! $post_id || get_post_type( (int) $post_id ) !== 'doc' ) {
+		return $result;
+	}
+
+	if ( ! current_user_can( 'edit_post', (int) $post_id ) ) {
+		return $result;
+	}
+
+	add_filter( 'user_has_cap', function( $allcaps ) {
+		$allcaps['edit_posts'] = true;
+		return $allcaps;
+	} );
+
+	return $result;
+}, 10, 3 );
+
 // Register before Gutenberg/core (priority 9) so our handler is tried first
 // by the REST server. Their handler remains as a fallback but is never reached.
 add_action( 'rest_api_init', function() {
