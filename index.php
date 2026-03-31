@@ -90,10 +90,91 @@ function docs__prime_anon_cache( $token = null ) {
 
 // Prime the user cache as early as possible so wp_validate_auth_cookie()
 // (called by auth_redirect in wp-admin) can find our fake user.
-// If the WP auth cookie is missing or invalid, clear the docs_anon cookie
-// so the user gets a fresh identity on the next visit.
 add_action( 'plugins_loaded', function() {
-	docs__prime_anon_cache();
+	// If already authenticated as anon, just prime the cache.
+	if ( docs__is_anon_cookie() ) {
+		docs__prime_anon_cache();
+		return;
+	}
+
+	// All remaining checks require ?doc=SLUG in wp-admin.
+	if ( empty( $_GET['doc'] ) || ! defined( 'WP_ADMIN' ) || ! WP_ADMIN ) {
+		return;
+	}
+
+	// Handle magic link: ?doc=SLUG&action=rp&key=KEY&login=EMAIL
+	// This runs even for authenticated users (to consume the key and redirect).
+	if (
+		isset( $_GET['action'] ) && $_GET['action'] === 'rp' &&
+		isset( $_GET['key'] ) &&
+		isset( $_GET['login'] )
+	) {
+		global $wpdb;
+		$reset_key   = sanitize_text_field( wp_unslash( $_GET['key'] ) );
+		$reset_login = sanitize_text_field( wp_unslash( $_GET['login'] ) );
+		$slug        = sanitize_text_field( $_GET['doc'] );
+
+		$user = check_password_reset_key( $reset_key, $reset_login );
+		$wpdb->update(
+			$wpdb->users,
+			array( 'user_activation_key' => '' ),
+			array( 'user_login' => $reset_login )
+		);
+
+		if ( ! is_wp_error( $user ) ) {
+			wp_set_auth_cookie( $user->ID, true );
+		}
+		// Redirect to the editor (strip magic link params).
+		// For valid keys: user is now authenticated.
+		// For invalid/expired keys with existing auth: just open the editor.
+		// For invalid keys without auth: auth_redirect will catch it.
+		if ( ! is_wp_error( $user ) || ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+			wp_safe_redirect( admin_url( 'post.php?doc=' . $slug . '&action=edit' ) );
+			exit;
+		}
+		return;
+	}
+
+	// Already authenticated — no need for anon cookie.
+	if ( ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+		return;
+	}
+
+	// Handle anonymous "anyone with the link" access.
+	global $wpdb;
+	$slug = sanitize_text_field( $_GET['doc'] );
+	$post_id = $wpdb->get_var( $wpdb->prepare(
+		"SELECT ID FROM $wpdb->posts WHERE post_name = %s AND post_type = 'doc' LIMIT 1",
+		$slug
+	) );
+
+	if ( ! $post_id ) {
+		return;
+	}
+
+	$anyone = get_post_meta( (int) $post_id, 'docs-share-anyone', true );
+	if ( ! in_array( $anyone, array( 'anyone', 'anyone-view', 'anyone-comment' ), true ) ) {
+		return;
+	}
+
+	// Create the fake anon user.
+	$fake_id = PHP_INT_MAX;
+	$token = wp_generate_password( 43, false, false );
+
+	docs__prime_anon_cache( $token );
+
+	$GLOBALS['docs_use_anon_session'] = true;
+	wp_set_current_user( $fake_id );
+	wp_set_auth_cookie( $fake_id, false, '', $token );
+	$GLOBALS['docs_use_anon_session'] = false;
+
+	// Set $_COOKIE so auth_redirect sees the cookie on this same request.
+	$_COOKIE[ LOGGED_IN_COOKIE ] = wp_generate_auth_cookie(
+		$fake_id, time() + 2 * DAY_IN_SECONDS, 'logged_in', $token
+	);
+	$_COOKIE[ AUTH_COOKIE ] = wp_generate_auth_cookie(
+		$fake_id, time() + 2 * DAY_IN_SECONDS, 'auth', $token
+	);
 }, 0 );
 
 
@@ -233,12 +314,13 @@ function docs__send_email( $email_address, $post ) {
 	$title = sprintf( __( 'Invitation to Edit "%s"', 'docs' ), $post_title );
 	$title = wp_specialchars_decode( $title );
 
-	$link = get_permalink( $post );
+	$post_obj = get_post( $post );
 	$link = add_query_arg( array(
+		'doc'    => $post_obj->post_name,
 		'action' => 'rp',
-		'key' => get_password_reset_key( $user ),
-		'login' => rawurlencode( $user->user_login ),
-	), $link );
+		'key'    => get_password_reset_key( $user ),
+		'login'  => $user->user_login,
+	), admin_url( 'post.php' ) );
 
 	$author = get_userdata( get_post( $post )->post_author );
 	$author_name = $author ? $author->display_name : '';
@@ -252,179 +334,74 @@ function docs__send_email( $email_address, $post ) {
 	return wp_mail( $email_address, $title, $message );
 }
 
-// Redirect front end to admin.
-add_action( 'template_redirect', function() {
-	global $post;
-	global $doc_errors;
-	global $wp_query;
-	global $wpdb;
 
-	if ( is_singular( 'doc' /* 'post', 'page' */ ) ) {
-		$doc_errors = new WP_Error();
-		$current_user = wp_get_current_user();
-
-		if (
-			isset( $_GET['action'] ) &&
-			isset( $_GET['key'] ) &&
-			isset( $_GET['login'] ) &&
-			sanitize_text_field( wp_unslash( $_GET['login'] ) ) !== $current_user->user_login &&
-			sanitize_text_field( wp_unslash( $_GET['action'] ) ) === 'rp'
-		) {
-			$reset_key   = sanitize_text_field( wp_unslash( $_GET['key'] ) );
-			$reset_login = sanitize_text_field( wp_unslash( $_GET['login'] ) );
-
-			$user = check_password_reset_key( $reset_key, $reset_login );
-			$wpdb->update(
-				$wpdb->users,
-				array( 'user_activation_key' => '' ),
-				array( 'user_login' => $reset_login )
-			);
-
-			if ( is_wp_error( $user ) ) {
-				$doc_errors = $user;
-			} else {
-				// Reload with auth cookie — go straight to the editor.
-				wp_set_auth_cookie( $user->ID, true );
-				wp_redirect( admin_url( 'post.php?doc=' . $post->post_name . '&action=edit' ) );
-				exit;
-			}
-		}
-
-		if ( ! is_user_logged_in() ) {
-			if ( $post->post_status !== 'draft' ) {
-				return;
-			}
-
-			$anyone = get_post_meta( $post->ID, 'docs-share-anyone', true );
-
-			// "anyone with the link" — any of the link-sharing values.
-			if ( in_array( $anyone, array( 'anyone', 'anyone-view', 'anyone-comment' ), true ) ) {
-				$fake_id = PHP_INT_MAX;
-				$token = wp_generate_password( 43, false, false );
-
-				// Prime the cache so wp_set_auth_cookie generates the right HMAC.
-				docs__prime_anon_cache( $token );
-
-				// Flag for the session token manager — the cookie doesn't exist
-				// in $_COOKIE yet since it's being set in this response.
-				$GLOBALS['docs_use_anon_session'] = true;
-
-				wp_set_current_user( $fake_id );
-				wp_set_auth_cookie( $fake_id, false, '', $token );
-
-				$GLOBALS['docs_use_anon_session'] = false;
-
-				wp_redirect( admin_url( 'post.php?doc=' . $post->post_name . '&action=edit' ) );
-				die;
-			}
-
-			// Check if there are people with email access.
-			$shared_user_ids = get_post_meta( $post->ID, 'docs-share-edit', false );
-
-			if ( empty( $shared_user_ids ) ) {
-				exit;
-			}
-
-			if ( ! $_POST ) {
-				include ABSPATH . 'wp-login.php';
-				exit;
-			}
-
-			if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'docs-magic-link' ) ) {
-				$doc_errors->add( 'invalid_nonce', __( '<strong>Error</strong>: Security check failed. Please try again.', 'docs' ) );
-				include ABSPATH . 'wp-login.php';
-				exit;
-			}
-
-			if (
-				empty( $_POST['user_login'] ) ||
-				! is_string( $_POST['user_login'] )
-			) {
-				$doc_errors->add( 'empty_username', __( '<strong>Error</strong>: Enter an email address.', 'docs' ) );
-				include ABSPATH . 'wp-login.php';
-				exit;
-			}
-
-			$email_address = sanitize_email( trim( wp_unslash( $_POST['user_login'] ) ) );
-
-			if ( ! is_email( $email_address ) ) {
-				$doc_errors->add( 'empty_username', __( '<strong>Error</strong>: Enter an email address.', 'docs' ) );
-				include ABSPATH . 'wp-login.php';
-				exit;
-			}
-
-			$user = get_user_by( 'email', $email_address );
-			$shared_ids = array_map( 'intval', get_post_meta( $post->ID, 'docs-share-edit', false ) );
-
-			if ( ! $user || ! in_array( $user->ID, $shared_ids, true ) ) {
-				$doc_errors->add( 'empty_username', __( '<strong>Error</strong>: You do not have access to this document.', 'docs' ) );
-				include ABSPATH . 'wp-login.php';
-				exit;
-			}
-
-			if ( ! docs__send_email( $email_address, $post ) ) {
-				$doc_errors->add(
-					'retrieve_password_email_failure',
-					sprintf(
-						/* translators: %s: Documentation URL. */
-						__( '<strong>ERROR</strong>: The email could not be sent. Your site may not be correctly configured to send emails. <a href="%s">Get support for resetting your password</a>.' ),
-						esc_url( __( 'https://wordpress.org/support/article/resetting-your-password/' ) )
-					)
-				);
-				include ABSPATH . 'wp-login.php';
-				exit;
-			}
-
-			wp_safe_redirect( add_query_arg( 'checkemail', 'confirm',  get_permalink() ) );
-			exit;
-		} else /* if ( is_singular( array( 'doc' ) ) ) */ {
-			wp_redirect( admin_url( 'post.php?doc=' . $post->post_name . '&action=edit' ) );
-			exit;
-		}
-	}
-} );
-
+// Show a magic link email form on wp-login.php when redirecting to a doc.
 add_action( 'login_init', function() {
-	if ( ! is_singular( 'doc' ) ) {
+	$redirect_to = $_REQUEST['redirect_to'] ?? '';
+	if ( ! preg_match( '/[?&]doc=([a-f0-9]+)/', $redirect_to, $matches ) ) {
 		return;
 	}
 
-	if ( isset( $_GET[ 'checkemail' ] ) ) {
-		login_header(
-			__( 'Magic Link', 'docs' ),
-			'<p class="message">' .
-				__( 'Email sent.' ) .
-			'</p>'
-		);
-		login_footer();
-		exit;
+	$slug = $matches[1];
+	global $wpdb;
+	$post_id = $wpdb->get_var( $wpdb->prepare(
+		"SELECT ID FROM $wpdb->posts WHERE post_name = %s AND post_type = 'doc' LIMIT 1",
+		$slug
+	) );
+
+	if ( ! $post_id ) {
+		return;
 	}
 
-	global $doc_errors;
+	// Pre-fill email from the expired magic link's login param.
+	$prefill_email = '';
+	if ( preg_match( '/[?&]login=([^&]+)/', $redirect_to, $login_match ) ) {
+		$prefill_email = sanitize_email( rawurldecode( rawurldecode( $login_match[1] ) ) );
+	}
+
+	$errors = new WP_Error();
+
+	// Handle form submission.
+	if ( ! empty( $_POST['user_login'] ) ) {
+		if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'docs-magic-link' ) ) {
+			$errors->add( 'invalid_nonce', __( '<strong>Error</strong>: Security check failed. Please try again.', 'docs' ) );
+		} else {
+			$email_address = sanitize_email( trim( wp_unslash( $_POST['user_login'] ) ) );
+
+			if ( ! is_email( $email_address ) ) {
+				$errors->add( 'invalid_email', __( '<strong>Error</strong>: Enter a valid email address.', 'docs' ) );
+			} else {
+				$user = get_user_by( 'email', $email_address );
+				$shared_ids = array_map( 'intval', get_post_meta( $post_id, 'docs-share-edit', false ) );
+
+				if ( ! $user || ! in_array( $user->ID, $shared_ids, true ) ) {
+					$errors->add( 'not_shared', __( '<strong>Error</strong>: You do not have access to this document.', 'docs' ) );
+				} else {
+					docs__send_email( $email_address, get_post( $post_id ) );
+					login_header( __( 'Magic Link', 'docs' ), '<p class="message">' . __( 'Check your email for a new link.', 'docs' ) . '</p>' );
+					login_footer();
+					exit;
+				}
+			}
+		}
+	}
 
 	login_header(
 		__( 'Magic Link', 'docs' ),
-		'<p class="message">' .
-			__( 'Please enter your email address. You will receive a link to login.', 'docs' ) .
-		'</p>',
-		$doc_errors
+		'<p class="message">' . __( 'Enter your email address to receive a link to edit this document.', 'docs' ) . '</p>',
+		$errors
 	);
 
-	$user_login = '';
-
-	if ( isset( $_POST['user_login'] ) && is_string( $_POST['user_login'] ) ) {
-		$user_login = sanitize_email( wp_unslash( $_POST['user_login'] ) );
-	}
-
 	?>
-	<form name="lostpasswordform" id="lostpasswordform" action="<?php echo esc_url( get_permalink() ); ?>" method="post">
+	<form name="docsloginform" id="loginform" action="" method="post">
 		<p>
-			<label for="user_login" ><?php _e( 'Email Address', 'docs' ); ?><br />
-			<input type="text" name="user_login" id="user_login" class="input" value="<?php echo esc_attr( $user_login ); ?>" size="20" autocapitalize="off" /></label>
+			<label for="user_login"><?php _e( 'Email Address', 'docs' ); ?><br />
+			<input type="email" name="user_login" id="user_login" class="input" value="<?php echo esc_attr( ! empty( $_POST['user_login'] ) ? sanitize_email( wp_unslash( $_POST['user_login'] ) ) : $prefill_email ); ?>" size="20" autocapitalize="off" /></label>
 		</p>
 		<?php wp_nonce_field( 'docs-magic-link' ); ?>
+		<input type="hidden" name="redirect_to" value="<?php echo esc_attr( $redirect_to ); ?>" />
 		<p class="submit">
-			<input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="<?php esc_attr_e( 'Get Link' ); ?>" />
+			<input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="<?php esc_attr_e( 'Get Link', 'docs' ); ?>" />
 		</p>
 	</form>
 	<?php
@@ -708,12 +685,3 @@ add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $arg
 	return $user_caps;
 }, 10, 3 );
 
-// Users should only see their own documents.
-add_action( 'pre_get_posts', function( $query ) {
-	if ( ! is_post_type_archive( 'doc' ) ) {
-		return;
-	}
-
-	$query->set( 'post_status', 'draft' );
-	$query->set( 'author', (string) get_current_user_id() );
-}, 9999999 );

@@ -27,13 +27,11 @@ register_post_type( 'doc', array(
 		'items_list_navigation' => _x( 'Docs list navigation', 'Screen reader text for the pagination heading on the post type listing screen. Default “Posts list navigation”/”Pages list navigation”. Added in 4.4', 'docs' ),
 		'items_list' => _x( 'Docs list', 'Screen reader text for the items list heading on the post type listing screen. Default “Posts list”/”Pages list”. Added in 4.4', 'docs' )
 	),
-	'public' => true,
+	'public' => false,
 	'show_ui' => true,
 	'supports' => array( 'title', 'editor', 'author', 'custom-fields' ),
 	'show_in_rest' => true,
 	'rest_base' => 'docs',
-	'rewrite' => array( 'slug' => 'docs' ),
-	'has_archive' => true,
 	'capability_type' => 'doc',
 	'capabilities' => array(
 		'create_posts' => 'create_docs',

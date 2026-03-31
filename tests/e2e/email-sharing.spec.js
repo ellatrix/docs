@@ -19,6 +19,20 @@ async function dismissWelcomeModal( page ) {
 
 test.describe( 'Email sharing flow', () => {
 
+	test.afterAll( async ( { requestUtils } ) => {
+		const users = await requestUtils.rest( {
+			path: '/wp/v2/users',
+			params: { search: 'invited@example.com' },
+		} ).catch( () => [] );
+		for ( const user of users ) {
+			await requestUtils.rest( {
+				path: '/wp/v2/users/' + user.id,
+				method: 'DELETE',
+				params: { force: true, reassign: 1 },
+			} ).catch( () => {} );
+		}
+	} );
+
 	test( 'adding an email in the share panel sends an invite, and the recipient can open the editor', async ( {
 		admin,
 		editor,
@@ -65,7 +79,7 @@ test.describe( 'Email sharing flow', () => {
 		expect( email.subject ).toBe( 'Invitation to Edit "Sharing Test"' );
 		expect( lines[ 0 ] ).toBe( 'Hi invited@example.com' );
 		expect( lines[ 1 ] ).toBe( 'admin from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
-		expect( lines[ 2 ] ).toMatch( /^http:\/\/[^/]+\/\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
+		expect( lines[ 2 ] ).toMatch( /^http:\/\/[^/]+\/wp-admin\/post\.php\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
 
 		// 6. Open the magic link as a logged-out user.
 		const magicLink = lines[ 2 ];
@@ -74,7 +88,7 @@ test.describe( 'Email sharing flow', () => {
 
 		try {
 			await page1.goto( magicLink );
-			await expect( page1 ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
+			await expect( page1 ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
 			await dismissWelcomeModal( page1 );
 
 			// 7. Verify the editor loaded with the doc title.
@@ -96,24 +110,26 @@ test.describe( 'Email sharing flow', () => {
 			await ctx1.close();
 		}
 
-		// 8. Visit the magic link while already logged in — should redirect to editor.
+		// 8. Visit the magic link while already logged in — should go to editor.
 		await page.goto( magicLink );
-		await expect( page ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
+		await expect( page ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
 
-		// 9. Visit the doc link again logged out — should show the email form.
+		// 9. Visit the expired magic link logged out — should show email form.
 		const ctx2 = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
 		const page2 = await ctx2.newPage();
 
 		try {
 			await page2.goto( magicLink );
 
+			// Should be on wp-login.php with our email form, pre-filled.
 			await expect( page2.locator( '#user_login' ) ).toBeVisible();
+			await expect( page2.locator( '#user_login' ) ).toHaveValue( 'invited@example.com' );
 			await expect( page2.locator( '#wp-submit' ) ).toBeVisible();
 
 			// 10. Submit the email form to request a new magic link.
-			await page2.fill( '#user_login', 'invited@example.com' );
 			await page2.click( '#wp-submit' );
-			await expect( page2 ).toHaveURL( /checkemail=confirm/ );
+			await expect( page2 ).toHaveURL( /wp-login\.php/ );
+			await expect( page2.getByText( 'Check your email' ) ).toBeVisible();
 		} finally {
 			await ctx2.close();
 		}
@@ -125,16 +141,16 @@ test.describe( 'Email sharing flow', () => {
 		expect( email2.subject ).toBe( 'Invitation to Edit "Sharing Test"' );
 		expect( lines2[ 0 ] ).toBe( 'Hi invited@example.com' );
 		expect( lines2[ 1 ] ).toBe( 'admin from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
-		expect( lines2[ 2 ] ).toMatch( /^http:\/\/[^/]+\/\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
+		expect( lines2[ 2 ] ).toMatch( /^http:\/\/[^/]+\/wp-admin\/post\.php\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
+		const magicLink2 = lines2[ 2 ];
 
 		// 12. Use the new magic link to open the editor.
-		const magicLink2 = lines2[ 2 ];
 		const ctx3 = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
 		const page3 = await ctx3.newPage();
 
 		try {
 			await page3.goto( magicLink2 );
-			await expect( page3 ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
+			await expect( page3 ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
 			await dismissWelcomeModal( page3 );
 
 			await expect(

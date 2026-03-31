@@ -45,9 +45,8 @@ test.describe( 'Collaborative editing', () => {
 		const anonPage = await anonContext.newPage();
 
 		try {
-			await anonPage.goto( doc.link );
-
-			await expect( anonPage ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
+			await anonPage.goto( BASE_URL + '/wp-admin/post.php?doc=' + doc.slug + '&action=edit' );
+			await expect( anonPage ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
 			await dismissWelcomeModal( anonPage );
 
 			await expect(

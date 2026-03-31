@@ -37,19 +37,19 @@ test.describe( 'Anonymous link sharing flow', () => {
 		// 4. Save.
 		await editor.saveDraft();
 
-		// 5. Get the doc permalink.
-		const permalink = doc.link;
-		expect( permalink ).toMatch( /\?doc=[a-f0-9]{60}$/ );
+		// 5. Build the shareable admin URL.
+		const slug = doc.slug;
+		const shareLink = BASE_URL + '/wp-admin/post.php?doc=' + slug + '&action=edit';
 
 		// 6. Visit the link as a logged-out user.
 		const anonContext = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
 		const anonPage = await anonContext.newPage();
 
 		try {
-			await anonPage.goto( permalink );
+			await anonPage.goto( shareLink );
 
-			// 7. Should be redirected to the editor.
-			await expect( anonPage ).toHaveURL( /wp-admin\/post\.php.*action=edit/ );
+			// 7. Should stay on the admin slug URL (no redirect to frontend).
+			await expect( anonPage ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
 
 			await dismissWelcomeModal( anonPage );
 
@@ -87,5 +87,19 @@ test.describe( 'Anonymous link sharing flow', () => {
 
 		// 12. Check that the original author is preserved.
 		expect( savedDoc.author ).toBe( 1 );
+	} );
+
+	test( 'docs are not accessible on the frontend', async ( {
+		page,
+		requestUtils,
+	} ) => {
+		const doc = await requestUtils.rest( {
+			path: '/wp/v2/docs',
+			method: 'POST',
+			data: { title: 'Private Doc', status: 'draft' },
+		} );
+
+		await page.goto( doc.link );
+		await expect( page.getByText( 'Private Doc' ) ).not.toBeVisible();
 	} );
 } );
