@@ -672,7 +672,6 @@ add_filter( 'rest_pre_dispatch', function( $result, $server, $request ) {
 		return $result;
 	}
 
-	// Only for note-type comments.
 	if ( $request->get_param( 'type' ) !== 'note' ) {
 		return $result;
 	}
@@ -687,7 +686,10 @@ add_filter( 'rest_pre_dispatch', function( $result, $server, $request ) {
 	}
 
 	add_filter( 'user_has_cap', function( $allcaps ) {
-		$allcaps['edit_posts'] = true;
+		$allcaps['edit_posts']        = true;
+		// Needed to read other users' notes:
+		// https://github.com/WordPress/WordPress/blob/6.9/wp-includes/rest-api/endpoints/class-wp-rest-comments-controller.php#L1944
+		$allcaps['moderate_comments'] = true;
 		return $allcaps;
 	} );
 
@@ -696,6 +698,7 @@ add_filter( 'rest_pre_dispatch', function( $result, $server, $request ) {
 
 // Register before Gutenberg/core (priority 9) so our handler is tried first
 // by the REST server. Their handler remains as a fallback but is never reached.
+
 add_action( 'rest_api_init', function() {
 	if ( ! class_exists( 'WP_HTTP_Polling_Sync_Server' ) ) {
 		return;
@@ -737,11 +740,20 @@ add_action( 'pre_get_posts', function( $query ) {
 // dynamically when the doc is shared with them. Users who do have it get it
 // revoked when the doc is not shared with them (unless they're the author).
 add_filter( 'user_has_cap', function( $user_caps, $required_primitive_caps, $args ) {
-	if ( ! in_array( $args[0], array( 'edit_post', 'read_post', 'edit_post_meta', 'delete_post_meta' ), true ) || ! isset( $args[2] ) ) {
+	if ( ! in_array( $args[0], array( 'edit_post', 'read_post', 'edit_post_meta', 'delete_post_meta', 'edit_comment' ), true ) || ! isset( $args[2] ) ) {
 		return $user_caps;
 	}
 
-	$post = get_post( $args[2] );
+	// For edit_comment, look up the comment's post.
+	if ( $args[0] === 'edit_comment' ) {
+		$comment = get_comment( $args[2] );
+		if ( ! $comment || ! $comment->comment_post_ID ) {
+			return $user_caps;
+		}
+		$post = get_post( $comment->comment_post_ID );
+	} else {
+		$post = get_post( $args[2] );
+	}
 
 	if ( ! $post || $post->post_type !== 'doc' ) {
 		return $user_caps;
