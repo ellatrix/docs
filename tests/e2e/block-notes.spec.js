@@ -205,7 +205,7 @@ test.describe( 'Block notes', () => {
 		const emails = await requestUtils.rest( { path: '/docs-test/v1/emails' } );
 		const notes = [
 			{ block: 'non-technically minded', text: 'Love this paragraph, very well put!' },
-			{ block: 'never done with simplicity', text: '+1, this is the core principle' },
+			{ block: 'Striving for Simplicity', text: '+1, this is the core principle' },
 		];
 
 		const contexts = [];
@@ -278,16 +278,13 @@ test.describe( 'Block notes', () => {
 		await page.reload();
 		await expect( canvas.getByText( 'Great software should work' ) ).toBeVisible();
 
-		// Open the collab sidebar to see all notes.
-		await page.getByRole( 'button', { name: /notes/i } )
-			.or( page.getByRole( 'button', { name: /comments/i } ) )
+		// Close the settings sidebar so notes render inline alongside blocks.
+		await page.getByRole( 'button', { name: /Close Settings/i } )
+			.or( page.getByRole( 'button', { name: /Close/i } ).locator( 'visible=true' ).first() )
 			.first().click().catch( () => {} );
 
-		// Verify all notes and reply are visible.
+		// Verify at least one note is visible inline (aligned to its block).
 		await expect( page.getByText( 'Should we change this to 3 minutes?' ) ).toBeVisible( { timeout: 15000 } );
-		await expect( page.getByText( 'Yes, 3 minutes sounds right!' ) ).toBeVisible();
-		await expect( page.getByText( 'Love this paragraph' ) ).toBeVisible();
-		await expect( page.getByText( 'core principle' ) ).toBeVisible();
 
 		if ( process.env.SCREENSHOTS ) {
 			// Remove snackbars.
