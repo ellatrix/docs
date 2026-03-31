@@ -199,10 +199,10 @@ test.describe( 'Collaborative editing', () => {
 			await expect( items ).toHaveCount( 5, { timeout: 15000 } );
 
 			if ( process.env.SCREENSHOTS ) {
-				// Wait for snackbars to auto-dismiss.
-				await expect(
-					page.locator( '.components-snackbar' )
-				).toHaveCount( 0, { timeout: 15000 } ).catch( () => {} );
+				const snackbars = page.locator( '.components-snackbar-list .components-snackbar' );
+				while ( await snackbars.count() > 1 ) {
+					await snackbars.first().evaluate( ( el ) => el.remove() );
+				}
 				await page.screenshot( { path: 'assets/screenshot-1.png' } );
 			}
 
