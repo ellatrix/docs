@@ -41,12 +41,13 @@ Documents live entirely in wp-admin — there's no public frontend. Each doc get
 
 ### 1.0.0
 
-* Real-time collaborative editing with up to 1000 simultaneous users.
-* Share panel with per-person and link access controls.
-* Anonymous users with animal avatars — no database rows created.
-* Email invitations with magic links.
-* File uploads for invited and existing users.
-* Shareable slug-based URLs — no post IDs exposed.
+* Real-time collaborative editing (requires Gutenberg plugin or WordPress 7.0).
+* Anonymous visitors no longer create database users — identity is cookie-based.
+* Animal emoji avatars for anonymous collaborators.
+* User autocomplete in the share panel.
+* File upload support for email-invited users.
+* All capabilities are now dynamic — no stored roles or caps.
+* URLs are admin based instead of front-end redirects.
 
 ### 0.0.1
 
