@@ -1,11 +1,11 @@
 # Docs
 
     Contributors:      ellatrix, wordpressdotorg
-    Tags:              docs, documents, collaboration
+    Tags:              docs, documents, collaboration, real-time, sharing
     Requires at least: 6.9
     Tested up to:      6.9
     Requires Plugins:  gutenberg
-    Stable tag:        0.0.2
+    Stable tag:        1.0.0
     License:           GPL-2.0+
 
 Create and share documents with WordPress!
@@ -25,53 +25,28 @@ The share panel (in the document sidebar) lets you control access:
 * **Existing users** — add collaborators from the user autocomplete. They get full editing and upload access.
 * **Restricted** — only the document author and invited people can access.
 
-## Architecture
+### How it works
 
-There are three types of collaborators, each handled differently:
+Documents live entirely in wp-admin — there's no public frontend. Each doc gets a unique and secret shareable URL that opens the editor directly.
 
-* **Anonymous link visitors** are fake users — no database row is created. Identity is stored entirely in the WP auth cookie with a deterministic animal name derived from the session token. The user cache is primed on each request so WordPress treats them as logged-in users. No cleanup needed.
-* **Email-invited people** are real WordPress users with no role. They receive a magic link (password reset key) to log in. These users persist so they can be re-invited to other docs and so revisions are attributed to them.
-* **Existing WP users** are added directly by user ID from the autocomplete.
+**Anonymous visitors** don't create any database entries. Their identity exists only in a browser cookie and disappears when it expires.
 
-Shared user IDs are stored in `docs-share-edit` post meta (one row per user, `single: false, type: integer`). A `user_has_cap` filter grants doc editing capabilities dynamically based on this meta. Invitation emails are sent via an `added_post_meta` hook — WordPress diffs multi-value meta on save, so emails are only sent for newly added users.
+**Email-invited people** are created as real WordPress users (without a role) so their edits show up in revision history. They log in via magic links sent to their email.
 
-The `edit_docs` capability is granted to all users dynamically — it serves as a gate cap for the sync server and REST API, while actual per-doc access is controlled by the sharing-based `user_has_cap` filter.
+## Screenshots
 
-## Future
-
-* **View-only and comment-only sharing** — `docs-share-view` and `docs-share-comment` meta keys. Blocked by WordPress core requiring `edit_posts` for the comments REST API, which prevents granting limited access without also granting full editing.
-* **"Shared with me" view** — a dedicated doc list for email-invited users showing docs shared with them. Needs: `read` and `edit_posts` caps granted dynamically for doc admin pages, custom "Mine" and "Shared with me" tabs via `views_edit-doc`, hiding default "All"/"Drafts" tabs for non-admins, and hiding unrelated admin menu items (Posts, Comments, etc.).
-* **Direct editor links** — share links that open the editor directly without a frontend redirect.
-
-## Development
-
-Requires [Docker](https://www.docker.com/) and [Node.js](https://nodejs.org/).
-
-```bash
-npm install
-npx wp-env start
-```
-
-The dev site runs at http://localhost:2025 (admin/password).
-
-### E2E tests
-
-```bash
-npm run test:e2e
-npm run test:e2e:7.0  # WP 7.0 without Gutenberg
-```
+1. Real-time collaborative editing with multiple anonymous users.
 
 ## Changelog
 
-### 0.0.2
+### 1.0.0
 
-* Real-time collaborative editing (requires Gutenberg plugin).
-* Google Docs-style share panel with per-person and general access controls.
-* Anonymous users as fake cookie-based users (no database rows).
-* Magic link email invitations for sharing with specific people.
-* File upload support for email-invited and existing users.
-* Security: nonce verification, input sanitization, dynamic capabilities.
-* E2E test suite with Playwright (WP 6.9 + Gutenberg and WP 7.0).
+* Real-time collaborative editing with up to 1000 simultaneous users.
+* Share panel with per-person and link access controls.
+* Anonymous users with animal avatars — no database rows created.
+* Email invitations with magic links.
+* File uploads for invited and existing users.
+* Shareable slug-based URLs — no post IDs exposed.
 
 ### 0.0.1
 
