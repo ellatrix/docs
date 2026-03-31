@@ -246,6 +246,11 @@ add_filter( 'determine_current_user', function( $user_id ) {
 // controlled by the sharing-based user_has_cap filter below.
 add_filter( 'user_has_cap', function( $allcaps ) {
 	$allcaps['edit_docs'] = true;
+	// Allow file uploads for no-role email-invited users.
+	$user = wp_get_current_user();
+	if ( $user->ID && empty( $user->roles ) && ! docs__is_anon_cookie() ) {
+		$allcaps['upload_files'] = true;
+	}
 	if ( ! empty( $allcaps['edit_posts'] ) ) {
 		$allcaps['create_docs']         = true;
 	}
