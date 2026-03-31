@@ -7,6 +7,13 @@ module.exports = defineConfig( {
 	...baseConfig,
 	testDir: './tests/e2e',
 	globalSetup: './tests/e2e/global-setup.js',
+	projects: baseConfig.projects?.map( ( project ) => ( {
+		...project,
+		use: {
+			...project.use,
+			viewport: { width: 1440, height: 900 },
+		},
+	} ) ),
 	webServer: {
 		command: 'npm run env:start',
 		url: process.env.WP_BASE_URL,

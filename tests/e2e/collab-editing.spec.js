@@ -122,6 +122,10 @@ test.describe( 'Collaborative editing', () => {
 			// 4 anon + 1 admin = 5.
 			await expect( items ).toHaveCount( 5, { timeout: 15000 } );
 
+			if ( process.env.SCREENSHOTS ) {
+				await page.screenshot( { path: 'assets/screenshot-1.png' } );
+			}
+
 			// Verify the anonymous animals are not all the same.
 			const names = await page.locator( '.editor-collaborators-presence__list-item-name' ).allTextContents();
 			const anonNames = names.filter( function( n ) { return n.startsWith( 'Anonymous' ); } );
