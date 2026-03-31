@@ -89,7 +89,11 @@ test.describe( 'Collaborative editing', () => {
 		const doc = await requestUtils.rest( {
 			path: '/wp/v2/docs',
 			method: 'POST',
-			data: { title: 'Limit Test', status: 'draft' },
+			data: {
+				title: 'Team Roadmap Q2',
+				status: 'draft',
+				content: '<!-- wp:heading -->\n<h2 class="wp-block-heading">Goals</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Ship the new dashboard by end of April. Focus on performance and accessibility improvements across all components.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class="wp-block-heading">Timeline</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Week 1-2: Design review and feedback. Week 3-4: Implementation sprint. Week 5-6: Testing and bug fixes.</p>\n<!-- /wp:paragraph -->',
+			},
 		} );
 
 		await admin.editPost( doc.id );
@@ -103,6 +107,7 @@ test.describe( 'Collaborative editing', () => {
 
 		const shareLink = BASE_URL + '/wp-admin/post.php?doc=' + doc.slug + '&action=edit';
 		const contexts = [];
+		const anonPages = [];
 
 		try {
 			for ( let i = 0; i < 4; i++ ) {
@@ -111,18 +116,55 @@ test.describe( 'Collaborative editing', () => {
 				await anonPage.goto( shareLink );
 				await expect( anonPage ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
 				contexts.push( ctx );
+				anonPages.push( anonPage );
 			}
+
+			// Enable cursor visibility on all pages.
+			await page.evaluate( () => {
+				wp.data.dispatch( 'core/preferences' ).set( 'core', 'showCollaborationCursor', true );
+			} );
+			for ( const ap of anonPages ) {
+				await ap.evaluate( () => {
+					if ( window.wp ) {
+						wp.data.dispatch( 'core/preferences' ).set( 'core', 'showCollaborationCursor', true );
+					}
+				} ).catch( () => {} );
+			}
+
+			// Position each anon user's cursor at a different block.
+			const blockSelectors = [
+				'h2:has-text("Goals")',
+				'p:has-text("Ship the new")',
+				'h2:has-text("Timeline")',
+				'p:has-text("Week 1-2")',
+			];
+			for ( let i = 0; i < anonPages.length; i++ ) {
+				await dismissWelcomeModal( anonPages[ i ] );
+				// Anon editors may or may not have the editor-canvas iframe.
+				const iframe = anonPages[ i ].locator( 'iframe[name="editor-canvas"]' );
+				if ( await iframe.count() > 0 ) {
+					await anonPages[ i ].frameLocator( 'iframe[name="editor-canvas"]' )
+						.locator( blockSelectors[ i ] ).click( { timeout: 5000 } ).catch( () => {} );
+				} else {
+					await anonPages[ i ].locator( blockSelectors[ i ] ).click( { timeout: 5000 } ).catch( () => {} );
+				}
+			}
+
+			// Give time for cursor positions to sync.
+			await page.waitForTimeout( 3000 );
 
 			// Wait for presence to show all collaborators.
 			const presence = page.locator( '.editor-collaborators-presence' );
 			await expect( presence ).toBeVisible( { timeout: 15000 } );
-			await presence.locator( 'button' ).click();
 
+			// Verify count via the presence popup.
+			await presence.locator( 'button' ).click();
 			const items = page.locator( '.editor-collaborators-presence__list-item' );
 			// 4 anon + 1 admin = 5.
 			await expect( items ).toHaveCount( 5, { timeout: 15000 } );
 
 			if ( process.env.SCREENSHOTS ) {
+				await page.waitForTimeout( 2000 );
 				await page.screenshot( { path: 'assets/screenshot-1.png' } );
 			}
 
