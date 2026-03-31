@@ -136,6 +136,15 @@ add_action( 'plugins_loaded', function() {
 		);
 	}
 
+	// Redirect ?post=ID to ?doc=SLUG for docs.
+	if ( empty( $_GET['doc'] ) && ! empty( $_GET['post'] ) && defined( 'WP_ADMIN' ) && WP_ADMIN ) {
+		$post = get_post( (int) $_GET['post'] );
+		if ( $post && $post->post_type === 'doc' && $post->post_name ) {
+			wp_safe_redirect( admin_url( 'post.php?doc=' . $post->post_name . '&action=edit' ) );
+			exit;
+		}
+	}
+
 	// All remaining checks require ?doc=SLUG in wp-admin.
 	if ( empty( $_GET['doc'] ) || ! defined( 'WP_ADMIN' ) || ! WP_ADMIN ) {
 		return;

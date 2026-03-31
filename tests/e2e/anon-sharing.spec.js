@@ -24,8 +24,9 @@ test.describe( 'Anonymous link sharing flow', () => {
 			data: { title: 'Public Doc', status: 'draft' },
 		} );
 
-		// 2. Open the doc in the editor.
+		// 2. Open the doc in the editor (via post ID — should redirect to slug URL).
 		await admin.editPost( doc.id );
+		await expect( page ).toHaveURL( /wp-admin\/post\.php\?doc=[a-f0-9]+&action=edit/ );
 
 		// 3. Open the Share panel and set "Anyone with the link" to Edit.
 		const shareButton = page.getByRole( 'button', { name: 'Share' } );
