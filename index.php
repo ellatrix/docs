@@ -34,9 +34,25 @@ $GLOBALS['docs_anon_animals'] = array(
 );
 
 // Derive animal identity from the session token.
+// Derive animal identity from the session token.
+// The token may have an animal index appended after a dot (e.g. "abc123.3")
+// set during cookie creation via the ?animal= param.
 function docs__animal_from_token( $token ) {
 	$animals = $GLOBALS['docs_anon_animals'];
 	$codes = array_keys( $animals );
+
+	// Check for encoded animal index in the token.
+	if ( strpos( $token, '.' ) !== false ) {
+		$index = (int) substr( $token, strrpos( $token, '.' ) + 1 );
+		if ( isset( $codes[ $index ] ) ) {
+			$code = $codes[ $index ];
+			return array(
+				'code' => $code,
+				'name' => sprintf( __( 'Anonymous %s', 'docs' ), $animals[ $code ] ),
+			);
+		}
+	}
+
 	$index = abs( crc32( $token ) ) % count( $codes );
 	$code = $codes[ $index ];
 	return array(
@@ -162,6 +178,20 @@ add_action( 'plugins_loaded', function() {
 
 	// Create the fake anon user.
 	$token = wp_generate_password( 43, false, false );
+
+	// Encode the requested animal into the token so it persists across requests.
+	if ( ! empty( $_GET['animal'] ) ) {
+		$animals = $GLOBALS['docs_anon_animals'];
+		$codes = array_keys( $animals );
+		$requested = strtolower( sanitize_text_field( $_GET['animal'] ) );
+		foreach ( $animals as $code => $name ) {
+			if ( strtolower( $name ) === $requested ) {
+				$token .= '.' . array_search( $code, $codes, true );
+				break;
+			}
+		}
+	}
+
 	$fake_id = docs__fake_user_id( $token );
 
 	docs__prime_anon_cache( $token );

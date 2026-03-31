@@ -137,15 +137,15 @@ test.describe( 'Collaborative editing', () => {
 		await page.getByLabel( 'Anyone with the link can edit' ).click();
 		await editor.saveDraft();
 
-		const shareLink = BASE_URL + '/wp-admin/post.php?doc=' + doc.slug + '&action=edit';
+		const animals = [ 'fox', 'bear', 'panda', 'koala' ];
 		const contexts = [];
 		const anonPages = [];
 
 		try {
-			for ( let i = 0; i < 4; i++ ) {
+			for ( let i = 0; i < animals.length; i++ ) {
 				const ctx = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
 				const anonPage = await ctx.newPage();
-				await anonPage.goto( shareLink );
+				await anonPage.goto( BASE_URL + '/wp-admin/post.php?doc=' + doc.slug + '&action=edit&animal=' + animals[ i ] );
 				await expect( anonPage ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
 				contexts.push( ctx );
 				anonPages.push( anonPage );
@@ -199,15 +199,19 @@ test.describe( 'Collaborative editing', () => {
 			await expect( items ).toHaveCount( 5, { timeout: 15000 } );
 
 			if ( process.env.SCREENSHOTS ) {
-				await page.waitForTimeout( 2000 );
+				// Wait for snackbars to auto-dismiss.
+				await expect(
+					page.locator( '.components-snackbar' )
+				).toHaveCount( 0, { timeout: 15000 } ).catch( () => {} );
 				await page.screenshot( { path: 'assets/screenshot-1.png' } );
 			}
 
-			// Verify the anonymous animals are not all the same.
+			// Verify the specific animals are present.
 			const names = await page.locator( '.editor-collaborators-presence__list-item-name' ).allTextContents();
-			const anonNames = names.filter( function( n ) { return n.startsWith( 'Anonymous' ); } );
-			const uniqueNames = [ ...new Set( anonNames ) ];
-			expect( uniqueNames.length ).toBeGreaterThan( 1 );
+			for ( const animal of animals ) {
+				const expected = 'Anonymous ' + animal.charAt( 0 ).toUpperCase() + animal.slice( 1 );
+				expect( names ).toContain( expected );
+			}
 		} finally {
 			for ( const ctx of contexts ) {
 				await ctx.close();
