@@ -90,9 +90,41 @@ test.describe( 'Collaborative editing', () => {
 			path: '/wp/v2/docs',
 			method: 'POST',
 			data: {
-				title: 'Team Roadmap Q2',
+				title: 'Philosophy',
 				status: 'draft',
-				content: '<!-- wp:heading -->\n<h2 class="wp-block-heading">Goals</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Ship the new dashboard by end of April. Focus on performance and accessibility improvements across all components.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class="wp-block-heading">Timeline</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Week 1-2: Design review and feedback. Week 3-4: Implementation sprint. Week 5-6: Testing and bug fixes.</p>\n<!-- /wp:paragraph -->',
+				content: [
+					'<!-- wp:heading -->',
+					'<h2 class="wp-block-heading">Out of the Box</h2>',
+					'<!-- /wp:heading -->',
+					'',
+					'<!-- wp:paragraph -->',
+					'<p>Great software should work with little configuration and setup. WordPress is designed to get you up and running and fully functional in no longer than five minutes.</p>',
+					'<!-- /wp:paragraph -->',
+					'',
+					'<!-- wp:heading -->',
+					'<h2 class="wp-block-heading">Design for the Majority</h2>',
+					'<!-- /wp:heading -->',
+					'',
+					'<!-- wp:paragraph -->',
+					'<p>Many end users of WordPress are non-technically minded. They don\'t know what AJAX is, nor do they care about which version of PHP they are using. The average WordPress user simply wants to be able to write without problems or interruption.</p>',
+					'<!-- /wp:paragraph -->',
+					'',
+					'<!-- wp:heading -->',
+					'<h2 class="wp-block-heading">Decisions, Not Options</h2>',
+					'<!-- /wp:heading -->',
+					'',
+					'<!-- wp:paragraph -->',
+					'<p>When making decisions these are the users we consider first. Every time you give a user an option, you are asking them to make a decision. It\'s our duty as developers to make smart design decisions and avoid putting the weight of technical choices on our end users.</p>',
+					'<!-- /wp:paragraph -->',
+					'',
+					'<!-- wp:heading -->',
+					'<h2 class="wp-block-heading">Striving for Simplicity</h2>',
+					'<!-- /wp:heading -->',
+					'',
+					'<!-- wp:paragraph -->',
+					'<p>We\'re never done with simplicity. We want to make WordPress easier to use with every single release. Every version of WordPress should be easier and more enjoyable to use than the last.</p>',
+					'<!-- /wp:paragraph -->',
+				].join( '\n' ),
 			},
 		} );
 
@@ -131,24 +163,27 @@ test.describe( 'Collaborative editing', () => {
 				} ).catch( () => {} );
 			}
 
-			// Position each anon user's cursor at a different block.
-			const blockSelectors = [
-				'h2:has-text("Goals")',
-				'p:has-text("Ship the new")',
-				'h2:has-text("Timeline")',
-				'p:has-text("Week 1-2")',
-			];
+			// Position each anon user's cursor at a specific place.
 			for ( let i = 0; i < anonPages.length; i++ ) {
 				await dismissWelcomeModal( anonPages[ i ] );
-				// Anon editors may or may not have the editor-canvas iframe.
-				const iframe = anonPages[ i ].locator( 'iframe[name="editor-canvas"]' );
-				if ( await iframe.count() > 0 ) {
-					await anonPages[ i ].frameLocator( 'iframe[name="editor-canvas"]' )
-						.locator( blockSelectors[ i ] ).click( { timeout: 5000 } ).catch( () => {} );
-				} else {
-					await anonPages[ i ].locator( blockSelectors[ i ] ).click( { timeout: 5000 } ).catch( () => {} );
-				}
 			}
+
+			const clickInCanvas = async ( anonPage, selector, position ) => {
+				const iframe = anonPage.locator( 'iframe[name="editor-canvas"]' );
+				const loc = ( await iframe.count() > 0 )
+					? anonPage.frameLocator( 'iframe[name="editor-canvas"]' ).locator( selector )
+					: anonPage.locator( selector );
+				await loc.click( { timeout: 5000, position } ).catch( () => {} );
+			};
+
+			// 1: end of "Decisions, Not Options" heading
+			await clickInCanvas( anonPages[ 0 ], 'h2:has-text("Decisions, Not Options")', { x: 400, y: 10 } );
+			// 2: after "PHP they are using." in Design for the Majority
+			await clickInCanvas( anonPages[ 1 ], 'p:has-text("non-technically minded")', { x: 350, y: 30 } );
+			// 3: end of "end users." in Decisions paragraph
+			await clickInCanvas( anonPages[ 2 ], 'p:has-text("smart design decisions")', { x: 600, y: 40 } );
+			// 4: in "Striving for Simplicity" section
+			await clickInCanvas( anonPages[ 3 ], 'p:has-text("never done with simplicity")', { x: 200, y: 10 } );
 
 			// Give time for cursor positions to sync.
 			await page.waitForTimeout( 3000 );
