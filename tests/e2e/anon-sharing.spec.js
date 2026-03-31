@@ -103,4 +103,25 @@ test.describe( 'Anonymous link sharing flow', () => {
 		await page.goto( doc.link );
 		await expect( page.getByText( 'Private Doc' ) ).not.toBeVisible();
 	} );
+
+	test( 'unshared doc URL redirects to login for anonymous users', async ( {
+		admin,
+		requestUtils,
+	} ) => {
+		const doc = await requestUtils.rest( {
+			path: '/wp/v2/docs',
+			method: 'POST',
+			data: { title: 'Unshared Doc', status: 'draft' },
+		} );
+
+		const ctx = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
+		const anonPage = await ctx.newPage();
+
+		try {
+			await anonPage.goto( BASE_URL + '/wp-admin/post.php?doc=' + doc.slug + '&action=edit' );
+			await expect( anonPage ).toHaveURL( /wp-login\.php/ );
+		} finally {
+			await ctx.close();
+		}
+	} );
 } );
