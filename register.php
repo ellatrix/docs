@@ -40,16 +40,27 @@ register_post_type( 'doc', array(
 	'menu_icon' => 'dashicons-media-document',
 ) );
 
+// Only the author or an admin can modify sharing settings.
+$docs_share_auth = function( $allowed, $meta_key, $post_id ) {
+	$post = get_post( $post_id );
+	if ( ! $post ) {
+		return false;
+	}
+	return (int) $post->post_author === get_current_user_id() || current_user_can( 'manage_options' );
+};
+
 register_post_meta( 'doc', 'docs-share-edit', array(
-	'type'         => 'integer',
-	'single'       => false,
-	'show_in_rest' => true,
+	'type'          => 'integer',
+	'single'        => false,
+	'show_in_rest'  => true,
+	'auth_callback' => $docs_share_auth,
 ) );
 
 register_post_meta( 'doc', 'docs-share-anyone', array(
-	'show_in_rest' => true,
-	'single' => true,
-	'type' => 'string',
+	'show_in_rest'  => true,
+	'single'        => true,
+	'type'          => 'string',
+	'auth_callback' => $docs_share_auth,
 ) );
 
 // Enable block notes (comments) for docs.
