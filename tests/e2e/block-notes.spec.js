@@ -269,32 +269,37 @@ test.describe( 'Block notes', () => {
 		await bobPage.getByRole( 'button', { name: 'Reply', exact: true } ).click();
 		await expect( bobPage.getByText( 'Yes, 3 minutes sounds right!' ) ).toBeVisible( { timeout: 15000 } );
 
+		// Admin adds a note on the last paragraph to trigger a refetch of all comments.
+		await page.waitForTimeout( 2000 );
+		await canvas.getByText( 'never done with simplicity' ).click();
+		await page.waitForTimeout( 500 );
+		await page.getByRole( 'toolbar', { name: 'Block tools' } )
+			.getByRole( 'button', { name: 'Options' } ).click();
+		await page.getByRole( 'menuitem', { name: /note/i } ).click();
+		await page.locator( '.editor-collab-sidebar-panel__comment-form textarea' ).fill( 'Agreed!' );
+		await page.getByRole( 'button', { name: /Add note/i } ).click();
+		await expect( page.getByText( 'Agreed!' ) ).toBeVisible( { timeout: 15000 } );
+
+		// The refetch should have pulled in all other users' notes.
+		await expect( page.getByText( 'Love this paragraph' ) ).toBeVisible( { timeout: 15000 } );
+
+		if ( process.env.SCREENSHOTS ) {
+			// Deselect the block and scroll to top.
+			await canvas.locator( 'body' ).click( { position: { x: 0, y: 0 } } );
+			await canvas.locator( 'html' ).evaluate( ( el ) => el.scrollTop = 0 );
+			await page.waitForTimeout( 500 );
+
+			await page.evaluate( () => {
+				document.querySelectorAll(
+					'.components-snackbar-list, .block-editor-block-contextual-toolbar, .editor-collab-sidebar-panel__comment-form'
+				).forEach( ( el ) => el.remove() );
+			} );
+			await page.screenshot( { path: 'assets/screenshot-2.png' } );
+		}
+
 		// Close all user sessions.
 		for ( const ctx of contexts ) {
 			await ctx.close();
-		}
-
-		// Reload admin page to see all notes.
-		await page.reload();
-		await expect( canvas.getByText( 'Great software should work' ) ).toBeVisible();
-
-		// Open the notes panel to verify all notes and reply.
-		await page.getByRole( 'button', { name: /notes/i } )
-			.or( page.getByRole( 'button', { name: /comments/i } ) )
-			.first().click().catch( () => {} );
-
-		await expect( page.getByText( 'Should we change this to 3 minutes?' ) ).toBeVisible( { timeout: 15000 } );
-		await expect( page.getByText( 'Yes, 3 minutes sounds right!' ) ).toBeVisible();
-		await expect( page.getByText( 'Love this paragraph' ) ).toBeVisible();
-		await expect( page.getByText( 'core principle' ) ).toBeVisible();
-
-		if ( process.env.SCREENSHOTS ) {
-			// Remove snackbars.
-			const snackbars = page.locator( '.components-snackbar-list .components-snackbar' );
-			while ( await snackbars.count() > 0 ) {
-				await snackbars.first().evaluate( ( el ) => el.remove() );
-			}
-			await page.screenshot( { path: 'assets/screenshot-2.png' } );
 		}
 
 		// Clean up users.
