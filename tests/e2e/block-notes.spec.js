@@ -60,7 +60,7 @@ test.describe( 'Block notes', () => {
 		const emailUser = await requestUtils.rest( {
 			path: '/docs/v1/get-or-create-user',
 			method: 'POST',
-			data: { email: 'noter-' + Date.now() + '@example.com' },
+			data: { email: 'noter@example.com' },
 		} );
 
 		await requestUtils.rest( {
@@ -171,8 +171,8 @@ test.describe( 'Block notes', () => {
 		// Create two email users.
 		const users = [];
 		const userEmails = [
-			'alice-' + Date.now() + '@example.com',
-			'bob-' + Date.now() + '@example.com',
+			'alice@example.com',
+			'bob@example.com',
 		];
 		for ( const email of userEmails ) {
 			const user = await requestUtils.rest( {
@@ -197,15 +197,15 @@ test.describe( 'Block notes', () => {
 		await page.getByRole( 'toolbar', { name: 'Block tools' } )
 			.getByRole( 'button', { name: 'Options' } ).click();
 		await page.getByRole( 'menuitem', { name: /note/i } ).click();
-		await page.locator( '.editor-collab-sidebar-panel__comment-form textarea' ).fill( 'Should we change this to 3 minutes?' );
+		await page.locator( '.editor-collab-sidebar-panel__comment-form textarea' ).fill( 'Wow, only five minutes?' );
 		await page.getByRole( 'button', { name: /Add note/i } ).click();
-		await expect( page.getByText( 'Should we change this to 3 minutes?' ) ).toBeVisible( { timeout: 15000 } );
+		await expect( page.getByText( 'Wow, only five minutes?' ) ).toBeVisible( { timeout: 15000 } );
 
 		// Open all email user sessions simultaneously so CRDT state is shared.
 		const emails = await requestUtils.rest( { path: '/docs-test/v1/emails' } );
 		const notes = [
 			{ block: 'non-technically minded', text: 'Love this paragraph, very well put!' },
-			{ block: 'Striving for Simplicity', text: '+1, this is the core principle' },
+			{ block: 'Striving for Simplicity', text: '+1, this is a core principle' },
 		];
 
 		const contexts = [];
@@ -261,13 +261,13 @@ test.describe( 'Block notes', () => {
 			);
 
 		// The admin's note should now appear in the sidebar.
-		await expect( bobPage.getByText( 'Should we change this to 3 minutes?' ) ).toBeVisible( { timeout: 15000 } );
+		await expect( bobPage.getByText( 'Wow, only five minutes?' ) ).toBeVisible( { timeout: 15000 } );
 
 		// Reply to it.
-		await bobPage.getByText( 'Should we change this to 3 minutes?' ).click();
-		await bobPage.locator( '.editor-collab-sidebar-panel__comment-form textarea' ).last().fill( 'Yes, 3 minutes sounds right!' );
+		await bobPage.getByText( 'Wow, only five minutes?' ).click();
+		await bobPage.locator( '.editor-collab-sidebar-panel__comment-form textarea' ).last().fill( 'Yes, pretty famous!' );
 		await bobPage.getByRole( 'button', { name: 'Reply', exact: true } ).click();
-		await expect( bobPage.getByText( 'Yes, 3 minutes sounds right!' ) ).toBeVisible( { timeout: 15000 } );
+		await expect( bobPage.getByText( 'Yes, pretty famous!' ) ).toBeVisible( { timeout: 15000 } );
 
 		// Admin adds a note on the last paragraph to trigger a refetch of all comments.
 		await page.waitForTimeout( 2000 );
