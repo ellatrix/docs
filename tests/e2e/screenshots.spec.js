@@ -153,18 +153,15 @@ test( 'generate plugin banner', async ( {
 		} )();
 		// Panda: select "Design for the Majority" heading
 		await tripleClickInCanvas( anonPages[ 2 ], 'h2:has-text("Design for the Majority")' );
-		// Koala: cursor at end of "non-technically minded."
+		// Koala: cursor after "configuration and setup."
 		await ( async () => {
-			// Click the paragraph first to focus it.
-			await clickInCanvas( anonPages[ 3 ], 'p:has-text("non-technically minded")', { x: 10, y: 10 } );
-			// Use Keyboard to go to end of "minded." via End key won't work cross-platform.
-			// Instead, use the Selection API in the iframe to place cursor precisely.
+			await clickInCanvas( anonPages[ 3 ], 'p:has-text("five minutes")', { x: 10, y: 10 } );
 			const iframe = anonPages[ 3 ].locator( 'iframe[name="editor-canvas"]' );
 			const frame = ( await iframe.count() > 0 )
 				? anonPages[ 3 ].frameLocator( 'iframe[name="editor-canvas"]' )
 				: anonPages[ 3 ];
-			await frame.locator( 'p:has-text("non-technically minded")' ).evaluate( ( el ) => {
-				const text = 'non-technically minded.';
+			await frame.locator( 'p:has-text("five minutes")' ).evaluate( ( el ) => {
+				const text = 'configuration and setup.';
 				const walker = document.createTreeWalker( el, NodeFilter.SHOW_TEXT );
 				let node;
 				while ( ( node = walker.nextNode() ) ) {
@@ -184,9 +181,12 @@ test( 'generate plugin banner', async ( {
 		await page.evaluate( () => {
 			wp.data.dispatch( 'core/preferences' ).set( 'core/edit-post', 'fullscreenMode', true );
 			wp.data.dispatch( 'core/preferences' ).set( 'core', 'showBlockBreadcrumbs', false );
-			document.querySelectorAll(
-				'.components-snackbar-list, .components-popover'
-			).forEach( ( el ) => el.remove() );
+			document.querySelectorAll( '.components-popover' )
+				.forEach( ( el ) => el.remove() );
+			const snackbars = document.querySelectorAll( '.components-snackbar-list .components-snackbar' );
+			for ( let i = 0; i < snackbars.length - 1; i++ ) {
+				snackbars[ i ].remove();
+			}
 		} );
 		await page.waitForTimeout( 1000 );
 
