@@ -1,6 +1,6 @@
 # Docs
 
-    Contributors:      ellatrix, wordpressdotorg
+    Contributors:      ellatrix
     Tags:              docs, documents, collaboration, real-time, sharing
     Requires at least: 6.9
     Tested up to:      6.9
