@@ -4,7 +4,7 @@
  * Plugin Name: Docs
  * Plugin URI: https://wordpress.org/plugins/docs/
  * Description: Create and share documents with WordPress!
- * Version: 1.0.1
+ * Version: 1.0.2
  * Requires at least: 6.9
  * Requires Plugins: gutenberg
  * Author: Ella van Durpe
@@ -499,6 +499,17 @@ add_filter( 'get_avatar_url', function( $url, $id_or_email ) {
 	}
 
 	$animal = get_user_meta( $user_id, 'animal', true );
+
+	// For comments by anonymous users, derive the animal from comment_author.
+	if ( ! $animal && is_object( $id_or_email ) && isset( $id_or_email->comment_author ) ) {
+		$animals = $GLOBALS['docs_anon_animals'];
+		foreach ( $animals as $code => $name ) {
+			if ( $id_or_email->comment_author === 'Anonymous ' . $name ) {
+				$animal = $code;
+				break;
+			}
+		}
+	}
 
 	if ( ! $animal ) {
 		return $url;

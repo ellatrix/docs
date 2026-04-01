@@ -228,26 +228,18 @@ test.describe( 'Block notes', () => {
 
 		await requestUtils.rest( { path: '/docs-test/v1/emails' } );
 
-		// Create two email users.
-		const users = [];
-		const userEmails = [
-			'test1@example.com',
-			'sara@example.com',
-		];
-		for ( const email of userEmails ) {
-			const user = await requestUtils.rest( {
-				path: '/docs/v1/get-or-create-user',
-				method: 'POST',
-				data: { email },
-			} );
-			users.push( user );
-		}
+		// Create one email user.
+		const saraUser = await requestUtils.rest( {
+			path: '/docs/v1/get-or-create-user',
+			method: 'POST',
+			data: { email: 'sara@example.com' },
+		} );
 
-		// Share the doc with all three.
+		// Share the doc with sara and enable link sharing.
 		await requestUtils.rest( {
 			path: '/wp/v2/docs/' + doc.id,
 			method: 'POST',
-			data: { meta: { 'docs-share-edit': users.map( ( u ) => u.id ) } },
+			data: { meta: { 'docs-share-edit': [ saraUser.id ], 'docs-share-anyone': 'anyone' } },
 		} );
 
 		// Admin opens the doc and adds a note on the first paragraph.
@@ -261,56 +253,49 @@ test.describe( 'Block notes', () => {
 		await page.getByRole( 'button', { name: /Add note/i } ).click();
 		await expect( page.getByText( 'Wow, only five minutes?' ) ).toBeVisible( { timeout: 15000 } );
 
-		// Open all email user sessions simultaneously so CRDT state is shared.
-		const emails = await requestUtils.rest( { path: '/docs-test/v1/emails' } );
-		const notes = [
-			{ block: 'non-technically minded', text: 'Love this paragraph, very well put!' },
-			{ block: 'Striving for Simplicity', text: '+1, this is a core principle' },
-		];
-
 		const contexts = [];
-		const userPages = [];
 
-		// First two users add notes to different blocks.
-		for ( let i = 0; i < 2; i++ ) {
-			const email = emails.filter( ( e ) => e.to === users[ i ].email ).pop();
-			if ( ! email ) continue;
-			const magicLink = email.message.split( '\r\n\r\n' )[ 2 ];
+		// Anon user opens via link sharing and adds a note.
+		const anonCtx = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
+		const anonPage = await anonCtx.newPage();
+		await anonPage.goto( BASE_URL + '/wp-admin/post.php?doc=' + doc.slug + '&action=edit' );
+		await expect( anonPage ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
+		await anonPage.getByRole( 'dialog', { name: 'Welcome to the editor' } )
+			.getByRole( 'button', { name: 'Close' } ).click().catch( () => {} );
+		contexts.push( anonCtx );
 
-			const ctx = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
-			const userPage = await ctx.newPage();
-			await userPage.goto( magicLink );
-			await expect( userPage ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
-			await userPage.getByRole( 'dialog', { name: 'Welcome to the editor' } )
-				.getByRole( 'button', { name: 'Close' } ).click().catch( () => {} );
-			contexts.push( ctx );
-			userPages.push( userPage );
-		}
+		// Sara opens via magic link.
+		const emails = await requestUtils.rest( { path: '/docs-test/v1/emails' } );
+		const saraEmail = emails.filter( ( e ) => e.to === 'sara@example.com' ).pop();
+		const saraCtx = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
+		const saraPage = await saraCtx.newPage();
+		await saraPage.goto( saraEmail.message.split( '\r\n\r\n' )[ 2 ] );
+		await expect( saraPage ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
+		await saraPage.getByRole( 'dialog', { name: 'Welcome to the editor' } )
+			.getByRole( 'button', { name: 'Close' } ).click().catch( () => {} );
+		contexts.push( saraCtx );
 
-		// Wait for CRDT sync to settle across all sessions.
+		// Wait for CRDT sync to settle.
 		await page.waitForTimeout( 5000 );
 
-		// Each user adds a note to a different block.
-		for ( let i = 0; i < userPages.length; i++ ) {
-			const userPage = userPages[ i ];
-
+		// Anon adds a note on "non-technically minded" paragraph.
+		const addNote = async ( userPage, block, text ) => {
 			await userPage.frameLocator( 'iframe[name="editor-canvas"]' )
-				.getByText( notes[ i ].block )
-				.click( { timeout: 5000 } )
-				.catch( () =>
-					userPage.getByText( notes[ i ].block ).click()
-				);
-
+				.getByText( block ).click( { timeout: 5000 } )
+				.catch( () => userPage.getByText( block ).click() );
 			await userPage.getByRole( 'toolbar', { name: 'Block tools' } )
 				.getByRole( 'button', { name: 'Options' } ).click();
 			await userPage.getByRole( 'menuitem', { name: /note/i } ).click();
-			await userPage.locator( '.editor-collab-sidebar-panel__comment-form textarea' ).fill( notes[ i ].text );
+			await userPage.locator( '.editor-collab-sidebar-panel__comment-form textarea' ).fill( text );
 			await userPage.getByRole( 'button', { name: /Add note/i } ).click();
-			await expect( userPage.getByText( notes[ i ].text ) ).toBeVisible( { timeout: 15000 } );
-		}
+			await expect( userPage.getByText( text ) ).toBeVisible( { timeout: 15000 } );
+		};
 
-		// Bob (second user) replies to the admin's note on a different block.
-		const bobPage = userPages[ 1 ];
+		await addNote( anonPage, 'non-technically minded', 'Love this paragraph, very well put!' );
+		await addNote( saraPage, 'Striving for Simplicity', '+1, this is a core principle' );
+
+		// Sara replies to the admin's note.
+		const bobPage = saraPage;
 
 		// Click the block with the admin's note to show it in the sidebar.
 		await bobPage.frameLocator( 'iframe[name="editor-canvas"]' )
@@ -362,13 +347,11 @@ test.describe( 'Block notes', () => {
 			await ctx.close();
 		}
 
-		// Clean up users.
-		for ( const user of users ) {
-			await requestUtils.rest( {
-				path: '/wp/v2/users/' + user.id,
-				method: 'DELETE',
-				params: { force: true, reassign: 1 },
-			} ).catch( () => {} );
-		}
+		// Clean up user.
+		await requestUtils.rest( {
+			path: '/wp/v2/users/' + saraUser.id,
+			method: 'DELETE',
+			params: { force: true, reassign: 1 },
+		} ).catch( () => {} );
 	} );
 } );
