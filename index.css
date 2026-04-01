@@ -1,7 +1,8 @@
 .editor-post-preview,
 .editor-preview-dropdown,
 .editor-post-publish-panel__toggle,
-.edit-post-post-status {
+.edit-post-post-status,
+.editor-post-panel__row {
 	display: none !important;
 }
 
