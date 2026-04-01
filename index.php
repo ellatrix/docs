@@ -652,7 +652,7 @@ add_action( 'rest_api_init', function() {
 			);
 		},
 		'permission_callback' => function() {
-			return current_user_can( 'edit_docs' );
+			return current_user_can( 'create_docs' );
 		},
 		'args'                => array(
 			'email' => array(
