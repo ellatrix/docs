@@ -74,7 +74,7 @@ test.describe( 'Collaborative editing', () => {
 			await expect( anonCollabList ).toBeVisible();
 			// Anon sees themselves as "You" and the admin by name.
 			await expect( anonCollabList ).toContainText( 'You' );
-			await expect( anonCollabList ).toContainText( 'admin' );
+			await expect( anonCollabList ).toContainText( 'Ella' );
 		} finally {
 			await anonContext.close();
 		}

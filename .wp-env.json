@@ -9,6 +9,9 @@
 		"WP_DEBUG_LOG": true,
 		"SCRIPT_DEBUG": true
 	},
+	"lifecycleScripts": {
+		"afterStart": "npx wp-env run tests-cli -- wp user update 1 --user_email=ellatrix@chat.wordpress.org --display_name=Ella --skip-email"
+	},
 	"port": 2025,
 	"testsPort": 2026,
 	"env": {

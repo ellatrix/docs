@@ -171,8 +171,8 @@ test.describe( 'Block notes', () => {
 		// Create two email users.
 		const users = [];
 		const userEmails = [
-			'alice@example.com',
-			'bob@example.com',
+			'test1@example.com',
+			'sara@example.com',
 		];
 		for ( const email of userEmails ) {
 			const user = await requestUtils.rest( {

@@ -9,6 +9,10 @@
 	height: 64px;
 }
 
+.editor-collab-sidebar-panel__user-name {
+	text-transform: none !important;
+}
+
 /* Share panel */
 
 /* Add people */

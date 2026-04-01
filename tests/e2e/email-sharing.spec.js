@@ -78,7 +78,7 @@ test.describe( 'Email sharing flow', () => {
 		expect( email.to ).toBe( 'invited@example.com' );
 		expect( email.subject ).toBe( 'Invitation to Edit "Sharing Test"' );
 		expect( lines[ 0 ] ).toBe( 'Hi invited@example.com' );
-		expect( lines[ 1 ] ).toBe( 'admin from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
+		expect( lines[ 1 ] ).toBe( 'Ella from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
 		expect( lines[ 2 ] ).toMatch( /^http:\/\/[^/]+\/wp-admin\/post\.php\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
 
 		// 6. Open the magic link as a logged-out user.
@@ -140,7 +140,7 @@ test.describe( 'Email sharing flow', () => {
 		expect( email2.to ).toBe( 'invited@example.com' );
 		expect( email2.subject ).toBe( 'Invitation to Edit "Sharing Test"' );
 		expect( lines2[ 0 ] ).toBe( 'Hi invited@example.com' );
-		expect( lines2[ 1 ] ).toBe( 'admin from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
+		expect( lines2[ 1 ] ).toBe( 'Ella from "docs" invites you to edit "Sharing Test". Use the link below to open the editor.' );
 		expect( lines2[ 2 ] ).toMatch( /^http:\/\/[^/]+\/wp-admin\/post\.php\?doc=[a-f0-9]+&action=rp&key=[\w]+&login=\S+$/ );
 		const magicLink2 = lines2[ 2 ];
 
