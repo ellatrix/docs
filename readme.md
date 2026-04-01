@@ -5,7 +5,7 @@
     Requires at least: 6.9
     Tested up to:      6.9
     Requires Plugins:  gutenberg
-    Stable tag:        1.0.1
+    Stable tag:        1.0.2
     License:           GPL-2.0+
 
 Create and share documents with WordPress!
@@ -36,8 +36,16 @@ Documents live entirely in wp-admin — there's no public frontend. Each doc get
 ## Screenshots
 
 1. Real-time collaborative editing with multiple anonymous users.
+2. Block notes from multiple collaborators aligned to blocks.
 
 ## Changelog
+
+### 1.0.2
+
+* Anonymous users can add block notes on docs with link sharing enabled.
+* Hide status and author fields from the doc sidebar.
+* Fix early translation loading notice with WP_DEBUG enabled.
+* Override note name capitalisation from Gutenberg CSS.
 
 ### 1.0.1
 
