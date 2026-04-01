@@ -11,6 +11,7 @@
 		"env:destroy": "wp-env destroy",
 		"test:e2e": "wp-scripts test-playwright --config playwright.config.js",
 		"test:e2e:screenshots": "SCREENSHOTS=1 wp-scripts test-playwright --config playwright.config.js",
+		"banner": "npx sharp-cli -i assets/screenshot-1.png -o assets/banner-1544x500.png extract 400 160 1280 500 && npx sharp-cli -i assets/banner-1544x500.png -o assets/banner-1544x500.png extend 0 0 132 132 --background '#ffffff'",
 		"test:e2e:7.0": "cp .wp-env.json .wp-env.json.bak && cp .wp-env.7.0.json .wp-env.json && wp-env start --update && wp-env run tests-cli -- wp plugin deactivate gutenberg && npm run test:e2e; cp .wp-env.json.bak .wp-env.json && wp-env start"
 	},
 	"devDependencies": {
