@@ -5,7 +5,7 @@
     Requires at least: 6.9
     Tested up to:      6.9
     Requires Plugins:  gutenberg
-    Stable tag:        1.0.0
+    Stable tag:        1.0.1
     License:           GPL-2.0+
 
 Create and share documents with WordPress!
@@ -38,6 +38,13 @@ Documents live entirely in wp-admin — there's no public frontend. Each doc get
 1. Real-time collaborative editing with multiple anonymous users.
 
 ## Changelog
+
+### 1.0.1
+
+* Security: only doc authors and admins can modify sharing settings.
+* Security: restrict user creation endpoint to doc authors.
+* Block notes (comments) support for docs.
+* Email-invited users can see and reply to other users' notes.
 
 ### 1.0.0
 
