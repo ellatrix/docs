@@ -176,14 +176,36 @@ test.describe( 'Collaborative editing', () => {
 				await loc.click( { timeout: 5000, position } ).catch( () => {} );
 			};
 
-			// 1: end of "Decisions, Not Options" heading
+			const selectInCanvas = async ( anonPage, text ) => {
+				const iframe = anonPage.locator( 'iframe[name="editor-canvas"]' );
+				const loc = ( await iframe.count() > 0 )
+					? anonPage.frameLocator( 'iframe[name="editor-canvas"]' ).getByText( text, { exact: true } )
+					: anonPage.getByText( text, { exact: true } );
+				// Double-click to select a word, triple-click for a full line.
+				await loc.dblclick( { timeout: 5000 } ).catch( () => {} );
+			};
+
+			// 1: cursor at end of "Decisions, Not Options" heading
 			await clickInCanvas( anonPages[ 0 ], 'h2:has-text("Decisions, Not Options")', { x: 400, y: 10 } );
-			// 2: after "PHP they are using." in Design for the Majority
-			await clickInCanvas( anonPages[ 1 ], 'p:has-text("non-technically minded")', { x: 350, y: 30 } );
-			// 3: end of "end users." in Decisions paragraph
+			// 2: bear selects "AJAX" by double-clicking it
+			await ( async () => {
+				const iframe = anonPages[ 1 ].locator( 'iframe[name="editor-canvas"]' );
+				const loc = ( await iframe.count() > 0 )
+					? anonPages[ 1 ].frameLocator( 'iframe[name="editor-canvas"]' ).locator( 'text=AJAX' )
+					: anonPages[ 1 ].locator( 'text=AJAX' );
+				await loc.dblclick( { timeout: 5000 } ).catch( () => {} );
+			} )();
+			// 3: cursor at end of Decisions paragraph
 			await clickInCanvas( anonPages[ 2 ], 'p:has-text("smart design decisions")', { x: 600, y: 40 } );
-			// 4: in "Striving for Simplicity" section
-			await clickInCanvas( anonPages[ 3 ], 'p:has-text("never done with simplicity")', { x: 200, y: 10 } );
+			// 4: koala selects "Striving for Simplicity" heading
+			await ( async () => {
+				const iframe = anonPages[ 3 ].locator( 'iframe[name="editor-canvas"]' );
+				const loc = ( await iframe.count() > 0 )
+					? anonPages[ 3 ].frameLocator( 'iframe[name="editor-canvas"]' ).locator( 'h2:has-text("Striving for Simplicity")' )
+					: anonPages[ 3 ].locator( 'h2:has-text("Striving for Simplicity")' );
+				// Triple-click to select the entire heading text.
+				await loc.click( { clickCount: 3, timeout: 5000 } ).catch( () => {} );
+			} )();
 
 			// Give time for cursor positions to sync.
 			await page.waitForTimeout( 3000 );
