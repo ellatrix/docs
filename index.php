@@ -48,16 +48,18 @@ function docs__animal_from_token( $token ) {
 			$code = $codes[ $index ];
 			return array(
 				'code' => $code,
-				'name' => sprintf( __( 'Anonymous %s', 'docs' ), $animals[ $code ] ),
+				'name' => 'Anonymous ' . $animals[ $code ],
 			);
 		}
 	}
 
 	$index = abs( crc32( $token ) ) % count( $codes );
 	$code = $codes[ $index ];
+	// Not using __() here because this runs at plugins_loaded, before
+	// textdomains are loaded. Translate at display time if needed.
 	return array(
 		'code' => $code,
-		'name' => sprintf( __( 'Anonymous %s', 'docs' ), $animals[ $code ] ),
+		'name' => 'Anonymous ' . $animals[ $code ],
 	);
 }
 
@@ -681,17 +683,34 @@ add_filter( 'rest_pre_dispatch', function( $result, $server, $request ) {
 		return $result;
 	}
 
+	// edit_post (singular) checks per-doc sharing permissions.
 	if ( ! current_user_can( 'edit_post', (int) $post_id ) ) {
 		return $result;
 	}
 
+	// Only grant note access to anon users if link sharing is enabled,
+	// or to real users who exist in the database.
+	if ( docs__is_anon_cookie() ) {
+		$anyone = get_post_meta( (int) $post_id, 'docs-share-anyone', true );
+		if ( ! in_array( $anyone, array( 'anyone', 'anyone-view', 'anyone-comment' ), true ) ) {
+			return $result;
+		}
+	} elseif ( ! get_userdata( get_current_user_id() ) ) {
+		return $result;
+	}
+
+	// edit_posts (plural) is a separate generic cap required by the comments
+	// controller for the type=note param. moderate_comments is required to
+	// read other users' notes.
+	// https://github.com/WordPress/WordPress/blob/6.9/wp-includes/rest-api/endpoints/class-wp-rest-comments-controller.php#L1944
 	add_filter( 'user_has_cap', function( $allcaps ) {
 		$allcaps['edit_posts']        = true;
-		// Needed to read other users' notes:
-		// https://github.com/WordPress/WordPress/blob/6.9/wp-includes/rest-api/endpoints/class-wp-rest-comments-controller.php#L1944
 		$allcaps['moderate_comments'] = true;
 		return $allcaps;
 	} );
+
+	// Notes don't need author email validation.
+	add_filter( 'pre_option_require_name_email', '__return_zero' );
 
 	return $result;
 }, 10, 3 );

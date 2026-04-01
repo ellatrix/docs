@@ -118,6 +118,66 @@ test.describe( 'Block notes', () => {
 		} ).catch( () => {} );
 	} );
 
+	test( 'anonymous user can add a note to a block', async ( {
+		admin,
+		editor,
+		page,
+		requestUtils,
+	} ) => {
+		const doc = await requestUtils.rest( {
+			path: '/wp/v2/docs',
+			method: 'POST',
+			data: {
+				title: 'Anon Notes Test',
+				status: 'draft',
+				content: '<!-- wp:paragraph -->\n<p>Paragraph for anon notes.</p>\n<!-- /wp:paragraph -->',
+			},
+		} );
+
+		// Enable "Anyone with the link can edit".
+		await admin.editPost( doc.id );
+		await editor.openDocumentSettingsSidebar();
+		const shareButton = page.getByRole( 'button', { name: 'Share' } );
+		if ( await shareButton.getAttribute( 'aria-expanded' ) !== 'true' ) {
+			await shareButton.click();
+		}
+		await page.getByLabel( 'Anyone with the link can edit' ).click();
+		await editor.saveDraft();
+
+		// Open as anonymous user.
+		const ctx = await admin.browser.newContext( { baseURL: BASE_URL, storageState: undefined } );
+		const anonPage = await ctx.newPage();
+
+		try {
+			await anonPage.goto( BASE_URL + '/wp-admin/post.php?doc=' + doc.slug + '&action=edit' );
+			await expect( anonPage ).toHaveURL( /wp-admin\/post\.php\?doc=.*action=edit/ );
+
+			await anonPage.getByRole( 'dialog', { name: 'Welcome to the editor' } )
+				.getByRole( 'button', { name: 'Close' } )
+				.click()
+				.catch( () => {} );
+
+			// Click the paragraph block.
+			await anonPage.frameLocator( 'iframe[name="editor-canvas"]' )
+				.getByText( 'Paragraph for anon notes.' )
+				.click( { timeout: 5000 } )
+				.catch( () =>
+					anonPage.getByText( 'Paragraph for anon notes.' ).click()
+				);
+
+			// Add a note.
+			await anonPage.getByRole( 'toolbar', { name: 'Block tools' } )
+				.getByRole( 'button', { name: 'Options' } ).click();
+			await anonPage.getByRole( 'menuitem', { name: /note/i } ).click();
+			await anonPage.locator( '.editor-collab-sidebar-panel__comment-form textarea' ).fill( 'Anon note here!' );
+			await anonPage.getByRole( 'button', { name: /Add note/i } ).click();
+
+			await expect( anonPage.getByText( 'Anon note here!' ) ).toBeVisible( { timeout: 15000 } );
+		} finally {
+			await ctx.close();
+		}
+	} );
+
 	test( 'multiple users can add notes to a philosophy doc', async ( {
 		admin,
 		editor,
