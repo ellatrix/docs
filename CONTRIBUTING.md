@@ -14,8 +14,8 @@ Dev site: http://localhost:2025 (admin/password). Test site: http://localhost:20
 ### Tests
 
 ```bash
-npm run test:e2e                    # WP 6.9 + Gutenberg
-npm run test:e2e:7.0                # WP 7.0 without Gutenberg
+npm run test:e2e                    # WP 7.0
+npm run test:e2e:6.9                # WP 6.9 + Gutenberg
 npm run test:e2e:screenshots        # Generate plugin assets
 ```
 

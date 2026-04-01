@@ -1,4 +1,4 @@
-name: E2E Tests (WP 6.9 + Gutenberg)
+name: E2E Tests (WP 7.0)
 
 on:
   push:
@@ -29,6 +29,9 @@ jobs:
 
       - name: Activate plugin on test site
         run: npx wp-env run tests-cli -- wp plugin deactivate docs && npx wp-env run tests-cli -- wp plugin activate docs
+
+      - name: Deactivate Gutenberg
+        run: npx wp-env run tests-cli -- wp plugin deactivate gutenberg
 
       - name: Run e2e tests
         run: npm run test:e2e

@@ -1,4 +1,4 @@
-name: E2E Tests (WP 7.0)
+name: E2E Tests (WP 6.9 + Gutenberg)
 
 on:
   push:
@@ -26,19 +26,11 @@ jobs:
 
       - name: Start WordPress
         run: |
-          cp .wp-env.7.0.json .wp-env.json
+          cp .wp-env.6.9.json .wp-env.json
           npx wp-env start
 
       - name: Activate plugin on test site
         run: npx wp-env run tests-cli -- wp plugin deactivate docs && npx wp-env run tests-cli -- wp plugin activate docs
-
-      - name: Deactivate Gutenberg
-        run: npx wp-env run tests-cli -- wp plugin deactivate gutenberg
-
-      - name: Verify environment
-        run: |
-          npx wp-env run tests-cli -- wp core version | grep -q '^7\.' || (echo "Expected WP 7.x" && exit 1)
-          npx wp-env run tests-cli -- wp plugin get gutenberg --field=status | grep -q 'inactive' || (echo "Gutenberg should be inactive" && exit 1)
 
       - name: Run e2e tests
         run: npm run test:e2e
@@ -47,5 +39,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-artifacts-7.0
+          name: e2e-artifacts-6.9
           path: artifacts/

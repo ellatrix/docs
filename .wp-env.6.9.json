@@ -1,5 +1,5 @@
 {
-	"core": "WordPress/WordPress#master",
+	"core": "WordPress/WordPress#6.9-branch",
 	"plugins": [
 		"https://github.com/WordPress/gutenberg/releases/download/v22.9.0-rc.1/gutenberg.zip",
 		"."
